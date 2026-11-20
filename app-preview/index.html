@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mapory 여정 영상</title>
+<link rel="stylesheet" href="maplibre-gl.css">
+<style>
+  :root { --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758; --amber: #F5B041; --amber-dark: #3A2C10; --amber-text: #FFD27A; --on-amber: #1A1408; --txt: #F3EFE6; --sub: #C9D2DD; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--txt); font-family: sans-serif; }
+  button { font-family: inherit; }
+  .hidden { display: none !important; }
+  #jmap { position: absolute; inset: 0; }
+  .muted { color: var(--sub); font-size: 13px; }
+  label { font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  input[type=date], input[type=text], select { width: 100%; min-width: 0; height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 15px; font-family: inherit; color-scheme: dark; }
+  .btn { height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 15px; padding: 0 14px; white-space: nowrap; }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
+  .btn:disabled { opacity: .45; }
+  #topbar { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top) + 10px) 12px 0; display: flex; justify-content: space-between; pointer-events: none; z-index: 3; }
+  #topbar button { pointer-events: auto; width: 44px; height: 44px; border-radius: 22px; border: 0; background: rgba(20,27,36,.92); color: var(--txt); font-size: 20px; }
+  #jTitle { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 50%; transform: translateX(-50%); background: rgba(255,255,255,.93); color: #111; border-radius: 18px; padding: 11px 22px; text-align: center; z-index: 2; pointer-events: none; max-width: calc(100% - 120px); }
+  #jTitle b { display: block; font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #jTitle span { font-size: 13px; color: #555; }
+  #jPanel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 62%; overflow-y: auto; background: var(--panel); border-radius: 22px 22px 0 0; padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px); display: flex; flex-direction: column; gap: 12px; z-index: 4; box-shadow: 0 -8px 30px rgba(0,0,0,.35); }
+  #jPanel h3 { margin: 0; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  #jPanel h3 button { border: 0; background: none; color: var(--sub); font-size: 14px; padding: 6px; }
+  #jPresets { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  #jPresets .btn { height: 36px; font-size: 13px; padding: 0 12px; border-radius: 18px; }
+  .range { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 6px; align-items: center; }
+  .two { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+  .chk { flex-direction: row; align-items: center; gap: 10px; font-size: 14px; color: var(--txt); }
+  .chk input { width: 20px; height: 20px; accent-color: var(--amber); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 3px; }
+  .seg button { height: 40px; border: 0; border-radius: 11px; background: none; color: var(--sub); font-size: 14px; }
+  .seg button[aria-pressed=true] { background: var(--amber-dark); color: var(--amber-text); font-weight: 700; }
+  #jCols { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--sub); }
+  #jCols button { width: 30px; height: 30px; border-radius: 15px; border: 3px solid transparent; }
+  #jCols button[aria-pressed=true] { border-color: #fff; }
+  #jOpen { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 18px); z-index: 3; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  #jCtl { position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 14px); background: rgba(20,27,36,.94); border-radius: 18px; padding: 10px 12px; display: flex; gap: 12px; align-items: center; z-index: 3; }
+  .track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .track i { display: block; height: 100%; width: 0; background: var(--amber); }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 9; font-size: 15px; color: var(--sub); }
+  .maplibregl-ctrl-bottom-right { display: none; }
+</style>
+</head>
+<body>
+<div id="jmap"></div>
+<div id="topbar"><button id="jClose" aria-label="닫기">✕</button><span></span></div>
+<div id="jTitle" class="hidden"><b id="jT1"></b><span id="jT2"></span></div>
+<button class="btn primary hidden" id="jOpen">⚙️ 설정 · 재생</button>
+<div id="jPanel">
+  <h3>🎬 여정 영상 <button id="jHide">지도 크게 보기 ▾</button></h3>
+  <div id="jPresets">
+    <button class="btn" data-r="year">올해</button><button class="btn" data-r="last">작년</button>
+    <button class="btn" data-r="month">이번 달</button><button class="btn" data-r="d30">최근 30일</button><button class="btn" data-r="all">전체</button>
+  </div>
+  <div class="range"><input type="date" id="jFrom" aria-label="시작일"><span class="muted">–</span><input type="date" id="jTo" aria-label="종료일"></div>
+  <div class="two">
+    <label>재생 길이<select id="jDur"><option value="15">15초</option><option value="30">30초</option><option value="60">1분</option><option value="90">1분 30초</option></select></label>
+    <label>카메라<select id="jCam"><option value="auto">하루 크기에 맞춤</option><option value="near">따라가기 · 동네</option><option value="city">따라가기 · 도시</option><option value="country">따라가기 · 나라</option><option value="fixed">전체 고정</option></select></label>
+  </div>
+  <label class="chk"><input type="checkbox" id="jFast"> 장거리 이동은 빨리 넘기기</label>
+  <div class="seg" role="group" aria-label="보기">
+    <button id="jFlat" aria-pressed="true">평면 지도</button><button id="jGlobe" aria-pressed="false">🌍 지구본</button>
+  </div>
+  <div class="two">
+    <label>이름<input type="text" id="jName" placeholder="나" maxlength="20"></label>
+    <label>제목 형식<input type="text" id="jTpl" maxlength="40"></label>
+  </div>
+  <div id="jCols">선 색</div>
+  <div class="two">
+    <button class="btn primary" id="jPlay">▶ 재생</button>
+    <button class="btn" id="jRec">⏺ 영상으로 저장</button>
+  </div>
+  <span class="muted" id="jMsg"></span>
+</div>
+<div id="jCtl" class="hidden"><div class="track"><i id="jProg"></i></div><button class="btn" id="jStop">멈추기</button></div>
+<div id="loading">기록을 불러오는 중…</div>
+
+<script src="maplibre-gl.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+const APP = window.MaporyApp || null;
+const TOP = 54;   // 녹화할 때 제목 카드를 닫기 버튼 아래에 둠
+const nf = new Intl.NumberFormat('ko-KR');
+function fmtDist(m) { return m < 1000 ? Math.round(m) + ' m' : m < 100000 ? (m / 1000).toFixed(1) + ' km' : nf.format(Math.round(m / 1000)) + ' km'; }
+function dayOf(ts) { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function addDays(s, n) { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return dayOf(d.getTime()); }
+function decode(str) {
+  const out = []; let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let r = 0, s = 0, b;
+      do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20 && i < str.length);
+      const v = (r & 1) ? ~(r >> 1) : (r >> 1);
+      if (k === 0) lat += v; else lon += v;
+    }
+    out.push([lat / 1e5, lon / 1e5]);
+  }
+  return out;
+}
+function makeMap(container, opts = {}) {
+  const map = new maplibregl.Map({ container, style: STYLE, center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true }, ...opts });
+  map.touchZoomRotate.disableRotation();
+  map.on('load', () => { map._ready = true; });
+  return map;
+}
+
+// 앱이 넘겨준 기록: [{ day: '2026-11-20', track: '폴리라인 폴리라인…' }]
+let days = [], segs = [];
+function loadDays() {
+  let raw = [];
+  try { raw = APP ? JSON.parse(APP.tracks()) : demoDays(); } catch (e) { raw = []; }
+  days = raw.filter(d => d.track).sort((a, b) => a.day.localeCompare(b.day));
+  segs = [];
+  for (const d of days) for (const part of d.track.split(' ')) {
+    const pts = decode(part); if (pts.length) segs.push({ day: d.day, ll: pts.map(p => [p[1], p[0]]) });
+  }
+}
+// 앱 밖(브라우저)에서 열면 시험용 가짜 기록
+function demoDays() {
+  const enc = (pts) => { let out = '', pl = 0, po = 0; const e = (v) => { v = v < 0 ? ~(v << 1) : v << 1; while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } out += String.fromCharCode(v + 63); }; for (const [la, lo] of pts) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5); e(a - pl); e(b - po); pl = a; po = b; } return out; };
+  const walk = (lat, lon, n, seed) => { const p = [[lat, lon]]; let dir = seed; for (let i = 0; i < n; i++) { if (i % 9 === 0) dir += (i % 2 ? 1 : -1) * Math.PI / 2 * (seed % 2 ? 1 : -1); lat += Math.cos(dir) * 0.00018; lon += Math.sin(dir) * 0.00022; p.push([lat, lon]); } return p; };
+  const out = [], t = new Date();
+  for (let k = 0; k < 70; k++) {
+    const d = dayOf(new Date(t.getFullYear(), t.getMonth(), t.getDate() - k).getTime()), j = k % 40;
+    let tr = [walk(37.5665 + j * 0.0012, 126.978 - j * 0.0009, 50, k + 1), walk(37.56 - j * 0.001, 126.99 + j * 0.0011, 40, k + 2)];
+    if (k >= 12 && k <= 14) tr = [walk(35.6812 + (k - 12) * 0.004, 139.7671, 60, k + 3)];
+    if (k >= 55 && k <= 57) tr = [walk(48.8566 + (k - 55) * 0.003, 2.3522, 60, k + 4)];
+    out.push({ day: d, track: tr.map(enc).join(' ') });
+  }
+  return out;
+}
+
+// 녹화한 영상을 앱으로 넘겨 갤러리(Movies/Mapory)에 저장
+async function saveVideo(blob, kind) {
+  if (!APP) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mapory.${kind}`; a.click(); return; }
+  $('jMsg').textContent = '영상을 저장하는 중…';
+  APP.videoBegin();
+  const CH = 768 * 1024;
+  for (let o = 0; o < blob.size; o += CH) {
+    const b64 = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.readAsDataURL(blob.slice(o, o + CH)); });
+    APP.videoPart(b64);
+  }
+  $('jMsg').textContent = APP.videoEnd(kind, `mapory-${jcfg.from}_${jcfg.to}`);
+}
+
+// ───────── 여정 영상: 점이 이동 기록을 따라 움직이며 선을 그림 ─────────
+let jmap = null, J = null, JP = null;
+const JCOL = [['핑크', '#E91E63'], ['노랑', '#F59E0B'], ['파랑', '#1E88E5']];
+const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 30, cam: 'auto', fast: true, globe: false, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
+if (!jcfg.v2) { jcfg.cam = 'auto'; jcfg.v2 = 1; }
+const saveJcfg = () => localStorage.setItem('mp_journey', JSON.stringify(jcfg));
+const EMPTY = { type: 'FeatureCollection', features: [] };
+
+function distM(a, b, c, d) {
+  const p1 = a * Math.PI / 180, p2 = c * Math.PI / 180, dp = p2 - p1, dl = (d - b) * Math.PI / 180;
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** 고른 기간의 길을 시간 순서대로 한 줄로 잇고, 재생 속도를 정할 '무게'를 매깁니다. */
+function buildPath(from, to) {
+  const list = segs.filter(s => s.day >= from && s.day <= to);
+  if (!list.length) return null;
+  const la = [], lo = [];
+  for (const s of list) for (const p of s.ll) { lo.push(p[0]); la.push(p[1]); }
+  const sl = [...la].sort((x, y) => x - y), so = [...lo].sort((x, y) => x - y);
+  const q = (arr, p) => arr[Math.min(arr.length - 1, Math.round((arr.length - 1) * p))];
+  const cut = la.length >= 40 ? 0.03 : 0;
+  const bounds = [[q(so, cut), q(sl, cut)], [q(so, 1 - cut), q(sl, 1 - cut)]];
+  const extent = distM(sl[0], so[0], sl[sl.length - 1], so[so.length - 1]);
+  const tol = Math.max(8, extent / 4000);            // 화면에서 구분 안 될 만큼 가까운 점은 건너뜀
+  const pts = [], day = [], gap = [];
+  for (const s of list) {
+    let last = null;
+    s.ll.forEach((p, k) => {
+      const end = k === s.ll.length - 1;
+      if (last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
+      pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); last = p;
+    });
+  }
+  const n = pts.length, W = new Float64Array(n), D = new Float64Array(n);
+  const FAR = 15000;                                 // 15km 넘는 이동은 '장거리'
+  for (let i = 1; i < n; i++) {
+    const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]);
+    D[i] = D[i - 1] + (gap[i] ? 0 : d);
+    let w = d;
+    if (jcfg.fast && d > FAR) w = FAR * (1 + Math.log(d / FAR));
+    if (gap[i]) w = Math.min(w, FAR * (1 + Math.log(Math.max(1, d / FAR))));   // 기록이 끊긴 사이는 길게 끌지 않음
+    W[i] = W[i - 1] + Math.max(w, 1);
+  }
+  // 지구본: 다른 나라·먼 도시로 넘어가는 이동(HOP 이상)은 멀어졌다 다가갈 시간을 넉넉히 줌
+  const hop = new Float64Array(n);
+  if (n > 1) {
+    const HOP = 120000, idx = [];
+    for (let i = 1; i < n; i++) { const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]); if (d > HOP) { hop[i] = d; idx.push(i); } }
+    if (idx.length) {
+      const total = W[n - 1];
+      const minW = Math.min(total * 4 / Math.max(5, jcfg.dur), total * 0.6 / idx.length);   // 한 번에 약 3초
+      const w = new Float64Array(n);
+      for (let i = 1; i < n; i++) w[i] = W[i] - W[i - 1];
+      for (const i of idx) w[i] = Math.max(w[i], minW);
+      for (let i = 1; i < n; i++) W[i] = W[i - 1] + w[i];
+    }
+  }
+  // 구역: 하루마다, 그리고 하루 안에서도 먼 곳(120km 이상)으로 건너가면 새 구역. 카메라가 구역 크기에 맞춰 확대·축소
+  const zoneOf = new Int32Array(n), zones = [];
+  let zs = 0;
+  const closeZone = (e) => {
+    const xs = [], ys = [];
+    for (let k = zs; k < e; k++) { xs.push(pts[k][0]); ys.push(pts[k][1]); }
+    xs.sort((x, y) => x - y); ys.sort((x, y) => x - y);
+    const c = xs.length > 50 ? 0.02 : 0;
+    const x0 = q(xs, c), x1 = q(xs, 1 - c), y0 = q(ys, c), y1 = q(ys, 1 - c);
+    zones.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2], w: distM((y0 + y1) / 2, x0, (y0 + y1) / 2, x1), h: distM(y0, x0, y1, x0) });
+    for (let k = zs; k < e; k++) zoneOf[k] = zones.length - 1;
+    zs = e;
+  };
+  for (let i = 1; i < n; i++) if (day[i] !== day[i - 1] || distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]) > 120000) closeZone(i);
+  if (n) closeZone(n);
+  return { pts, day, gap, W, D, n, bounds, hop, zoneOf, zones };
+}
+
+/** k0~k1 점을 선으로 (기록이 끊긴 곳에서는 나눔). tail이 있으면 끝에 이어 붙임 */
+function lines(P, k0, k1, tail) {
+  const out = []; let cur = [];
+  for (let k = Math.max(0, k0); k <= k1; k++) {
+    if (P.gap[k] && cur.length) { if (cur.length > 1) out.push(cur); cur = []; }
+    cur.push(P.pts[k]);
+  }
+  if (tail) cur.push(tail);
+  if (cur.length > 1) out.push(cur);
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: out } };
+}
+const pointF = (p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } });
+
+function jTitleText(P, i, km) {
+  const y0 = (P.day[0] || '').slice(0, 4);
+  const name = jcfg.name.trim() || '나';
+  const t = (jcfg.title || '{year} {name}의 Mapory').replace('{year}', y0).replace('{name}', name);
+  const d = P.day[Math.min(i, P.n - 1)];
+  return [t, `${+d.slice(0, 4)}년 ${+d.slice(5, 7)}월 · ${fmtDist(km)}`];
+}
+function setJTitle(a, b) { $('jT1').textContent = a; $('jT2').textContent = b; }
+
+function initJourney() {
+  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true } });
+  jmap.once('load', () => $('loading').classList.add('hidden'));
+  jmap.on('load', () => {
+    const col = JCOL[jcfg.col][1], L = { 'line-cap': 'round', 'line-join': 'round' };
+    for (const id of ['j-old', 'j-new', 'j-head']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
+    jmap.addLayer({ id: 'j-old', type: 'line', source: 'j-old', layout: L, paint: { 'line-color': col, 'line-width': 3, 'line-opacity': 0.6 } });
+    jmap.addLayer({ id: 'j-glow', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 14, 'line-blur': 9, 'line-opacity': 0.45 } });
+    jmap.addLayer({ id: 'j-new', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 5.5 } });
+    jmap.addLayer({ id: 'j-halo', type: 'circle', source: 'j-head', paint: { 'circle-radius': 17, 'circle-color': col, 'circle-opacity': 0.35, 'circle-blur': 0.5 } });
+    jmap.addLayer({ id: 'j-head', type: 'circle', source: 'j-head', paint: { 'circle-radius': 7, 'circle-color': '#111', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
+    jSetProjection();
+    jPreview(true);
+  });
+  jmap.on('render', jRecFrame);
+
+  // 설정 칸 채우기
+  const t = dayOf(Date.now());
+  if (!jcfg.from || !jcfg.to) { jcfg.from = t.slice(0, 4) + '-01-01'; jcfg.to = t; }
+  $('jName').value = jcfg.name; $('jTpl').value = jcfg.title; $('jFrom').value = jcfg.from; $('jTo').value = jcfg.to;
+  $('jDur').value = jcfg.dur; $('jCam').value = jcfg.cam; $('jFast').checked = jcfg.fast;
+  $('jFlat').setAttribute('aria-pressed', !jcfg.globe); $('jGlobe').setAttribute('aria-pressed', jcfg.globe);
+  const box = $('jCols');
+  JCOL.forEach(([name, col], i) => {
+    const b = document.createElement('button'); b.style.background = col; b.title = name; b.setAttribute('aria-label', '선 색 ' + name); b.setAttribute('aria-pressed', i === jcfg.col);
+    b.onclick = () => { jcfg.col = i; saveJcfg(); box.querySelectorAll('button').forEach((x, k) => x.setAttribute('aria-pressed', k === i)); jColor(); };
+    box.appendChild(b);
+  });
+  const changed = (fit) => { saveJcfg(); if (!J) jPreview(fit); };
+  $('jName').oninput = () => { jcfg.name = $('jName').value; changed(false); };
+  $('jTpl').oninput = () => { jcfg.title = $('jTpl').value; changed(false); };
+  $('jFrom').onchange = $('jTo').onchange = () => { let a = $('jFrom').value, b = $('jTo').value; if (a && b) { if (a > b) [a, b] = [b, a]; jcfg.from = a; jcfg.to = b; changed(true); } };
+  $('jDur').onchange = () => { jcfg.dur = +$('jDur').value; saveJcfg(); };
+  $('jCam').onchange = () => { jcfg.cam = $('jCam').value; saveJcfg(); };
+  $('jFast').onchange = () => { jcfg.fast = $('jFast').checked; changed(false); };
+  $('jFlat').onclick = () => { jcfg.globe = false; saveJcfg(); $('jFlat').setAttribute('aria-pressed', true); $('jGlobe').setAttribute('aria-pressed', false); jSetProjection(); jPreview(true); };
+  $('jGlobe').onclick = () => { jcfg.globe = true; saveJcfg(); $('jFlat').setAttribute('aria-pressed', false); $('jGlobe').setAttribute('aria-pressed', true); jSetProjection(); jPreview(true); };
+  document.querySelectorAll('#jPresets button').forEach(b => b.onclick = () => {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), today = dayOf(now.getTime());
+    const r = { year: [`${y}-01-01`, today], last: [`${y - 1}-01-01`, `${y - 1}-12-31`], month: [dayOf(new Date(y, m, 1).getTime()), today], d30: [addDays(today, -29), today], all: [days[0]?.day || today, today] }[b.dataset.r];
+    jcfg.from = r[0]; jcfg.to = r[1]; $('jFrom').value = r[0]; $('jTo').value = r[1]; changed(true);
+  });
+  $('jPlay').onclick = () => jStart(false);
+  $('jRec').onclick = () => jStart(true);
+  $('jStop').onclick = () => jEnd(true);
+}
+
+function jColor() {
+  if (!jmap?._ready) return;
+  const col = JCOL[jcfg.col][1];
+  for (const id of ['j-old', 'j-glow', 'j-new']) jmap.setPaintProperty(id, 'line-color', col);
+  jmap.setPaintProperty('j-halo', 'circle-color', col);
+}
+function jSetProjection() {
+  if (!jmap?._ready) return;
+  jmap.setProjection({ type: jcfg.globe ? 'globe' : 'mercator' });
+  if (jcfg.globe) { try { jmap.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {} }
+}
+
+/** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
+function jPreview(fit) {
+  if (!jmap?._ready) return;
+  JP = buildPath(jcfg.from, jcfg.to);
+  $('jMsg').textContent = JP ? `점 ${nf.format(JP.n)}개 · ${fmtDist(JP.D[JP.n - 1])}` : '이 기간에는 기록이 없어요.';
+  $('jPlay').disabled = $('jRec').disabled = !JP;
+  if (!JP) { for (const id of ['j-old', 'j-new', 'j-head']) jmap.getSource(id).setData(EMPTY); setJTitle('', ''); $('jTitle').classList.add('hidden'); return; }
+  jmap.getSource('j-old').setData(lines(JP, 0, JP.n - 1));
+  jmap.getSource('j-new').setData(EMPTY);
+  jmap.getSource('j-head').setData(pointF(JP.pts[0]));
+  const [a, b] = jTitleText(JP, JP.n - 1, JP.D[JP.n - 1]); setJTitle(a, b); $('jTitle').classList.remove('hidden');
+  if (fit) jFit(JP, 600);
+}
+function jFit(P, duration) {
+  if (jcfg.globe) { const c = [(P.bounds[0][0] + P.bounds[1][0]) / 2, (P.bounds[0][1] + P.bounds[1][1]) / 2]; jmap.easeTo({ center: c, zoom: 3, duration }); }
+  else { const panel = $('jPanel'), pb = J || panel.classList.contains('hidden') ? 90 : Math.min(innerHeight * 0.6, panel.offsetHeight + 24); jmap.fitBounds(P.bounds, { padding: { top: 110, bottom: pb, left: 28, right: 28 }, maxZoom: 14, duration }); }
+}
+function baseZoom() { return { near: 13.5, city: 11, country: 7.5 }[jcfg.cam] ?? 11; }
+/** 그 구역(하루 동안 돌아다닌 범위)이 화면에 다 들어오는 줌 */
+function zoneZoom(Z) {
+  const cv = jmap.getCanvas(), W = cv.clientWidth || 1000, H = cv.clientHeight || 700;
+  const mpp = 40075016.686 * Math.cos(Math.max(-80, Math.min(80, Z.c[1])) * Math.PI / 180) / 512;
+  const zw = Math.log2(mpp * W * 0.7 / Math.max(Z.w, 500)), zh = Math.log2(mpp * H * 0.6 / Math.max(Z.h, 500));
+  return Math.max(3, Math.min(15, zw, zh));
+}
+const camZoom = (P, i) => jcfg.cam === 'auto' ? zoneZoom(P.zones[P.zoneOf[i]]) : baseZoom();
+/** 거리 d(m)가 화면 폭의 약 60%에 들어오는 줌 */
+function zoomForSpan(d, lat) { const w = jmap.getCanvas().clientWidth || 1000; return Math.log2(40075016.686 * Math.cos(Math.max(-80, Math.min(80, lat)) * Math.PI / 180) * (w / 512) * 0.6 / Math.max(d, 1)); }
+const lonDiff = (a, b) => { let d = b - a; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
+const lonWrap = x => ((x + 540) % 360) - 180;
+
+function jStart(record) {
+  const P = buildPath(jcfg.from, jcfg.to);
+  if (!P) return;
+  jSetProjection();
+  const z0 = camZoom(P, 0), c0 = jcfg.cam === 'auto' ? [...P.zones[0].c] : [...P.pts[0]];
+  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: z0, hopStart: z0, cam: c0, endAt: 0 };
+  jmap.getSource('j-old').setData(EMPTY);
+  jmap.getSource('j-new').setData(EMPTY);
+  $('jPanel').classList.add('hidden'); $('jOpen').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
+  if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+  if (record) recStart();
+  requestAnimationFrame(jTick);
+}
+
+function jTick(now) {
+  if (!J) return;
+  const P = J.P, dt = J.last ? Math.min(0.1, (now - J.last) / 1000) : 0; J.last = now;
+  J.t = Math.min(J.t + dt, jcfg.dur);
+  const target = P.W[P.n - 1] * (J.t / jcfg.dur);
+  while (J.idx < P.n - 1 && P.W[J.idx] < target) J.idx++;
+  const i = J.idx, w0 = P.W[i - 1], w1 = P.W[i], f = w1 > w0 ? Math.max(0, Math.min(1, (target - w0) / (w1 - w0))) : 1;
+  const a = P.pts[i - 1], b = P.pts[i];
+  // 먼 이동: 앞 1/4은 제자리에서 멀어지고, 가운데 절반 동안 날아가고, 뒤 1/4은 도착지에서 다시 다가감
+  const sstep = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const isHop = P.hop && P.hop[i] > 0;
+  const g = isHop ? sstep((f - 0.25) / 0.5) : f;
+  const head = [lonWrap(a[0] + lonDiff(a[0], b[0]) * g), a[1] + (b[1] - a[1]) * g];
+  // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
+  const RECENT = 400, cutAt = Math.max(0, i - RECENT);
+  if (cutAt - J.oldUpto > 60 || (cutAt > 0 && J.oldUpto < 0)) { jmap.getSource('j-old').setData(lines(P, 0, cutAt)); J.oldUpto = cutAt; }
+  jmap.getSource('j-new').setData(lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, P.gap[i] ? null : head));
+  jmap.getSource('j-head').setData(pointF(head));
+  const km = P.D[i - 1] + (P.gap[i] ? 0 : (P.D[i] - P.D[i - 1]) * f);
+  const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2);
+  $('jProg').style.width = (J.t / jcfg.dur * 100).toFixed(2) + '%';
+  // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
+  if (jcfg.cam !== 'fixed' && dt > 0) {
+    // 속도는 부드럽게(최근 값 위주 평균) 재고, 동네 안에서는 조금만, 장거리 이동 중에만 크게 멀어집니다.
+    const raw = distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) / dt;      // m/초
+    J.speed = (J.speed ?? raw) + (raw - (J.speed ?? raw)) * (1 - Math.pow(0.1, dt));
+    const lat = Math.max(-80, Math.min(80, head[1]));
+    const screenM = 40075016.686 * Math.cos(lat * Math.PI / 180) / 2 ** baseZoom() * (jmap.getCanvas().clientWidth / 512);
+    const hopD = P.hop ? P.hop[i] : 0;
+    if (hopD) {
+      // 나라를 넘는 이동: 출발지에서 멀어져 지구가 보일 만큼 축소 → 도착지로 다가가며 다시 확대
+      const dest = camZoom(P, i);
+      const far = Math.max(1.3, Math.min(Math.min(J.hopStart, dest) - 2, zoomForSpan(hopD, (a[1] + b[1]) / 2)));
+      const arc = Math.min(sstep(f / 0.25), sstep((1 - f) / 0.25));
+      const want = J.hopStart + (dest - J.hopStart) * g;              // 출발 줌 → 도착 줌으로 이어짐
+      J.zoom = want - (want - far) * arc;
+      J.cam = head.slice();
+      J.inHop = true;
+    } else {
+      if (J.inHop) { J.inHop = false; J.speed = 0; }
+      if (jcfg.cam === 'auto') {
+        // 하루 범위에 맞춰: 그날 돌아다닌 곳 전체가 보이게 천천히 확대·축소하며 이동
+        const Z = P.zones[P.zoneOf[i]], k = 1 - Math.pow(0.08, dt);
+        J.zoom += (zoneZoom(Z) - J.zoom) * k;
+        J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], Z.c[0]) * k), J.cam[1] + (Z.c[1] - J.cam[1]) * k];
+        J.hopStart = J.zoom;
+        jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+        J.prevHead = head;
+      } else {
+      const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
+      const floor = longHop ? 3 : baseZoom() - 1.5;
+      const want = Math.max(floor, baseZoom() - Math.max(0, Math.log2(J.speed / (0.6 * screenM))));
+      const k = 1 - Math.pow(0.03, dt), kz = 1 - Math.pow(0.25, dt);
+      J.zoom += (want - J.zoom) * kz;
+      J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], head[0]) * k), J.cam[1] + (head[1] - J.cam[1]) * k];
+      J.hopStart = J.zoom;
+      }
+    }
+    if (!(jcfg.cam === 'auto' && !J.inHop)) jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+  }
+  J.prevHead = head;
+  if (J.t >= jcfg.dur) {
+    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jFit(P, 1200); }
+    if (now - J.endAt > 2500) { jEnd(false); return; }
+  }
+  jmap.triggerRepaint();
+  requestAnimationFrame(jTick);
+}
+
+function jEnd(aborted) {
+  if (!J) return;
+  const rec = J.rec;
+  J = null;
+  $('jPanel').classList.remove('hidden'); $('jCtl').classList.add('hidden');
+  if (rec && rec.state !== 'inactive') { rec._aborted = aborted; rec.stop(); }
+  if (aborted) jPreview(false);
+}
+
+// 영상으로 저장: 지도 그림 위에 제목 카드를 얹어 한 장씩 녹화합니다.
+function recStart() {
+  const src = jmap.getCanvas();
+  const rc = document.createElement('canvas'); rc.width = src.width; rc.height = src.height;
+  J.rc = rc; J.rctx = rc.getContext('2d');
+  const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const type = types.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(rc.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : {});
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    if (rec._aborted) { $('jMsg').textContent = '녹화를 멈췄어요.'; return; }
+    const kind = (rec.mimeType || type).includes('mp4') ? 'mp4' : 'webm';
+    saveVideo(new Blob(chunks, { type: rec.mimeType || type || 'video/webm' }), kind);
+  };
+  rec.start(500);
+  J.rec = rec;
+}
+function jRecFrame() {
+  if (!J || !J.rc) return;
+  const src = jmap.getCanvas(), c = J.rctx, rc = J.rc;
+  if (rc.width !== src.width || rc.height !== src.height) return;
+  c.drawImage(src, 0, 0);
+  const s = src.width / src.clientWidth;
+  const t1 = $('jT1').textContent, t2 = $('jT2').textContent;
+  c.font = `800 ${22 * s}px sans-serif`; const w1 = c.measureText(t1).width;
+  c.font = `500 ${13 * s}px sans-serif`; const w2 = c.measureText(t2).width;
+  const bw = Math.max(w1, w2) + 44 * s, bh = 70 * s, bx = (rc.width - bw) / 2, by = (TOP + 12) * s;
+  c.fillStyle = 'rgba(255,255,255,0.93)'; c.beginPath(); c.roundRect(bx, by, bw, bh, 18 * s); c.fill();
+  c.textAlign = 'center'; c.fillStyle = '#111';
+  c.font = `800 ${22 * s}px sans-serif`; c.fillText(t1, rc.width / 2, by + 31 * s);
+  c.fillStyle = '#555'; c.font = `500 ${13 * s}px sans-serif`; c.fillText(t2, rc.width / 2, by + 55 * s);
+}
+
+
+$('jClose').onclick = () => { if (J) jEnd(true); if (APP) APP.close(); else history.back(); };
+$('jHide').onclick = () => { $('jPanel').classList.add('hidden'); $('jOpen').classList.remove('hidden'); };
+$('jOpen').onclick = () => { $('jOpen').classList.add('hidden'); $('jPanel').classList.remove('hidden'); };
+window.mapoBack = () => { if (J) { jEnd(true); return true; } if ($('jPanel').classList.contains('hidden')) { $('jOpen').onclick(); return true; } return false; };
+setTimeout(() => { loadDays(); if (!days.length) { $('loading').textContent = '아직 기록된 길이 없어요.'; return; } initJourney(); }, 30);
+</script>
+</body>
+</html>
