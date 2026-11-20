@@ -94,8 +94,10 @@
   #globeHint { top: 16px; right: 16px; font-size: 13px; color: var(--sub); max-width: 260px; }
 
   /* 여정 영상 */
-  #jPanel { top: 16px; left: 16px; width: 350px; max-height: calc(100% - 32px); overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+  #jPanel { top: 16px; left: 16px; width: 350px; max-height: calc(100% - 32px); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; }
   #jPanel h3 { font-size: 18px; }
+  #jPanel label { min-width: 0; }
+  #jPanel select, #jPanel label input[type=text] { width: 100%; min-width: 0; }
   #jPanel label input[type=text] { height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; font-family: inherit; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .chk { flex-direction: row; align-items: center; gap: 8px; color: var(--txt); font-size: 14px; min-height: 36px; }
@@ -1187,10 +1189,14 @@ function jTick(now) {
   $('jProg').style.width = (J.t / jcfg.dur * 100).toFixed(2) + '%';
   // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
   if (jcfg.cam !== 'fixed' && dt > 0) {
-    const speed = distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) / dt;      // m/초
+    // 속도는 부드럽게(최근 값 위주 평균) 재고, 동네 안에서는 조금만, 장거리 이동 중에만 크게 멀어집니다.
+    const raw = distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) / dt;      // m/초
+    J.speed = (J.speed ?? raw) + (raw - (J.speed ?? raw)) * (1 - Math.pow(0.1, dt));
     const lat = Math.max(-80, Math.min(80, head[1]));
     const screenM = 40075016.686 * Math.cos(lat * Math.PI / 180) / 2 ** baseZoom() * (jmap.getCanvas().clientWidth / 512);
-    const want = Math.max(jcfg.globe ? 1.4 : 3, baseZoom() - Math.max(0, Math.log2(speed / (0.22 * screenM))));
+    const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
+    const floor = longHop ? (jcfg.globe ? 1.4 : 3) : baseZoom() - 1.5;
+    const want = Math.max(floor, baseZoom() - Math.max(0, Math.log2(J.speed / (0.6 * screenM))));
     const k = 1 - Math.pow(0.03, dt), kz = 1 - Math.pow(0.25, dt);
     J.zoom += (want - J.zoom) * kz;
     J.cam = [J.cam[0] + (head[0] - J.cam[0]) * k, J.cam[1] + (head[1] - J.cam[1]) * k];
