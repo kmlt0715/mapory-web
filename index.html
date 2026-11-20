@@ -93,6 +93,25 @@
   #tlRange { flex: 1; accent-color: var(--amber); height: 30px; }
   #globeHint { top: 16px; right: 16px; font-size: 13px; color: var(--sub); max-width: 260px; }
 
+  /* 여정 영상 */
+  #jPanel { top: 16px; left: 16px; width: 350px; max-height: calc(100% - 32px); overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+  #jPanel h3 { font-size: 18px; }
+  #jPanel label input[type=text] { height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; font-family: inherit; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .chk { flex-direction: row; align-items: center; gap: 8px; color: var(--txt); font-size: 14px; min-height: 36px; }
+  .chk input { width: 20px; height: 20px; accent-color: var(--amber); }
+  #jPresets { display: flex; gap: 6px; flex-wrap: wrap; }
+  #jPresets .btn { height: 34px; font-size: 12px; padding: 0 10px; border-radius: 17px; }
+  #jCols { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--sub); }
+  #jCols button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  #jCols button[aria-pressed=true] { border-color: #fff; }
+  #jTitle { position: absolute; z-index: 3; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,.93); color: #111; border-radius: 18px; padding: 12px 28px; text-align: center; box-shadow: 0 4px 18px rgba(0,0,0,.25); pointer-events: none; white-space: nowrap; }
+  #jTitle b { display: block; font-size: 24px; font-weight: 800; }
+  #jTitle span { font-size: 14px; color: #555; }
+  #jCtl { left: 50%; bottom: 28px; transform: translateX(-50%); width: min(560px, calc(100% - 40px)); display: flex; gap: 12px; align-items: center; }
+  #jCtl .track { flex: 1; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+  #jCtl .track i { display: block; height: 100%; width: 0; background: var(--amber); }
+
   /* 비교 */
   #page-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--panel); }
   #page-compare.hidden { display: none; }
@@ -220,6 +239,7 @@
     <div class="brand">Mapory<small id="dplus"></small></div>
     <button data-page="home" aria-current="page">🏠 한눈에</button>
     <button data-page="map">🗺️ 지도</button>
+    <button data-page="journey">🎬 여정 영상</button>
     <button data-page="compare">🪞 나란히 비교</button>
     <button data-page="stats">📊 통계</button>
     <button data-page="album">📔 추억 앨범</button>
@@ -266,6 +286,40 @@
           <button class="btn" id="tlClose">닫기</button>
         </div>
       </div>
+    </div>
+
+    <!-- 여정 영상 -->
+    <div class="page hidden" id="page-journey">
+      <div id="jmap" class="mapbox"></div>
+      <div id="jTitle" class="hidden"><b id="jT1"></b><span id="jT2"></span></div>
+      <div class="float" id="jPanel">
+        <h3>🎬 여정 영상</h3>
+        <p class="muted" style="margin:0">고른 기간 동안 다닌 길을 점이 따라가며 그려요. 재생하거나 영상 파일로 저장할 수 있어요.</p>
+        <div id="jPresets">
+          <button class="btn" data-r="year">올해</button><button class="btn" data-r="last">작년</button>
+          <button class="btn" data-r="month">이번 달</button><button class="btn" data-r="d30">최근 30일</button><button class="btn" data-r="all">전체</button>
+        </div>
+        <div class="range"><input type="date" id="jFrom" aria-label="시작일"><span class="muted">–</span><input type="date" id="jTo" aria-label="종료일"></div>
+        <div class="two">
+          <label>재생 길이<select id="jDur"><option value="15">15초</option><option value="30">30초</option><option value="60">1분</option><option value="90">1분 30초</option></select></label>
+          <label>카메라<select id="jCam"><option value="near">따라가기 · 동네</option><option value="city">따라가기 · 도시</option><option value="country">따라가기 · 나라</option><option value="fixed">전체 고정</option></select></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="jFast"> 장거리 이동은 빨리 넘기기</label>
+        <div class="seg" role="group" aria-label="보기">
+          <button id="jFlat" aria-pressed="true">평면 지도</button><button id="jGlobe" aria-pressed="false">🌍 지구본</button>
+        </div>
+        <div class="two">
+          <label>이름<input type="text" id="jName" placeholder="나" maxlength="20"></label>
+          <label>제목 형식<input type="text" id="jTpl" maxlength="40"></label>
+        </div>
+        <div id="jCols">선 색</div>
+        <div class="two">
+          <button class="btn primary" id="jPlay">▶ 재생</button>
+          <button class="btn" id="jRec">⏺ 영상으로 저장</button>
+        </div>
+        <span class="muted" id="jMsg"></span>
+      </div>
+      <div class="float hidden" id="jCtl"><div class="track"><i id="jProg"></i></div><button class="btn" id="jStop">멈추기</button></div>
     </div>
 
     <!-- 나란히 비교 -->
@@ -550,6 +604,7 @@ function initMap() {
   map.on('mousedown', stopSpin); map.on('wheel', stopSpin); map.on('touchstart', stopSpin);
 }
 function fitAll() {
+  if (globeOn) return;
   const b = boundsOf(tl ? (() => true) : inView);
   if (map && b) map.fitBounds(b, { padding: { top: 60, bottom: tl ? 180 : 60, left: innerWidth > 760 ? 390 : 40, right: 60 }, maxZoom: 15.5, duration: 900 });
 }
@@ -621,7 +676,7 @@ $('bPhoto').onclick = () => {
 // ───────── 타임랩스: 처음부터 오늘까지 안개가 날짜 순서로 걷힘 ─────────
 let tl = null;
 function startTimelapse() {
-  if (globeOn) setGlobe(false);
+  stopSpin();
   const list = [...new Set(days.map(d => d.day))].sort();
   if (!list.length) return;
   view = { mode: 'all', from: null, to: null };
@@ -634,8 +689,10 @@ function startTimelapse() {
   $('tlBar').classList.remove('hidden'); $('mapPanel').classList.add('hidden');
   fog.dim = false;
   fog.show = (d) => d <= tl.days[tl.i];
+  tl.globe = globeOn;
   const b0 = boundsOf((d) => d === list[0], false);
-  if (b0) map.fitBounds(b0, { padding: 120, maxZoom: 13.5, duration: 0 });
+  if (tl.globe) { if (b0) map.easeTo({ center: [(b0[0][0] + b0[1][0]) / 2, (b0[0][1] + b0[1][1]) / 2], zoom: Math.min(map.getZoom(), 3), duration: 800 }); }
+  else if (b0) map.fitBounds(b0, { padding: 120, maxZoom: 13.5, duration: 0 });
   tlFrame(0); requestAnimationFrame(tlTick);
 }
 function tlFrame(i) {
@@ -647,7 +704,10 @@ function tlFrame(i) {
   $('tlRange').value = i;
   // 그날 다닌 곳이 화면 밖이면 그쪽으로 카메라를 옮깁니다.
   const b = boundsOf((d) => d === k, false);
-  if (b) {
+  if (tl.globe) {
+    globeFilter(dayNo[k]);
+    if (b) { const c = [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2], cc = map.getCenter(); if (distM(cc.lat, cc.lng, c[1], c[0]) > 1500000 / 2 ** Math.max(0, map.getZoom() - 1)) map.easeTo({ center: c, duration: 700 }); }
+  } else if (b) {
     const v = map.getBounds(), c = [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2];
     const w = v.getEast() - v.getWest(), hgt = v.getNorth() - v.getSouth();
     const inside = c[0] > v.getWest() + w * 0.1 && c[0] < v.getEast() - w * 0.1 && c[1] > v.getSouth() + hgt * 0.2 && c[1] < v.getNorth() - hgt * 0.1;
@@ -665,6 +725,7 @@ function tlTick(now) {
   requestAnimationFrame(tlTick);
 }
 function stopTimelapse() {
+  if (tl?.globe) globeFilter(null);
   tl = null; fog.glowDay = null; fog.show = inView;
   $('tlBar').classList.add('hidden'); $('mapPanel').classList.remove('hidden');
   fog.draw(); drawPins();
@@ -682,8 +743,17 @@ $('tlClose').onclick = () => { stopTimelapse(); updatePanel(); };
 
 // ───────── 3D 지구본 ─────────
 let globeOn = false, spinning = false;
+// 날짜 번호 (타임랩스에서 '그날까지'만 보이게 거르는 데 씀)
+let dayNo = {};
 function trackGeoJSON() {
-  return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: segs.filter(s => s.ll.length > 1).map(s => s.ll) } }] };
+  const list = [...new Set(segs.map(s => s.day))].sort(); dayNo = Object.fromEntries(list.map((d, i) => [d, i]));
+  return { type: 'FeatureCollection', features: segs.filter(s => s.ll.length > 1).map(s => ({ type: 'Feature', properties: { i: dayNo[s.day] }, geometry: { type: 'LineString', coordinates: s.ll } })) };
+}
+function globeFilter(upto) {
+  if (!map.getLayer('trk-glow')) return;
+  const f = upto == null ? null : ['<=', ['get', 'i'], upto];
+  for (const id of ['trk-glow', 'trk-core', 'trk-halo', 'trk-dot']) map.setFilter(id, f);
+  map.setFilter('trk-now', upto == null ? ['==', ['get', 'i'], -1] : ['==', ['get', 'i'], upto]);
 }
 function setGlobe(on) {
   if (!map.isStyleLoaded()) return;
@@ -692,20 +762,24 @@ function setGlobe(on) {
   $('globeHint').classList.toggle('hidden', !on);
   if (on) {
     if (tl) stopTimelapse();
+    setTimeout(() => { if (!tl) globeFilter(null); }, 0);
     fog.off = true; fog.draw();
     map.setProjection({ type: 'globe' });
     try { map.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {}
     if (!map.getSource('trk')) {
       // 지구본 크기에서는 짧은 길이 안 보이므로, 다녀간 날마다 빛나는 점을 찍습니다.
-      const dots = { type: 'FeatureCollection', features: segs.filter((s, i) => i % 2 === 0).map(s => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: s.ll[0] } })) };
+      const trk = trackGeoJSON();
+      const dots = { type: 'FeatureCollection', features: segs.filter((s, i) => i % 2 === 0).map(s => ({ type: 'Feature', properties: { i: dayNo[s.day] }, geometry: { type: 'Point', coordinates: s.ll[0] } })) };
       map.addSource('trk-pt', { type: 'geojson', data: dots });
       map.addLayer({ id: 'trk-halo', type: 'circle', source: 'trk-pt', maxzoom: 9, paint: { 'circle-color': '#F5B041', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 7, 8, 16], 'circle-blur': 1, 'circle-opacity': 0.45 } });
       map.addLayer({ id: 'trk-dot', type: 'circle', source: 'trk-pt', maxzoom: 9, paint: { 'circle-color': '#FFE2A8', 'circle-radius': 2.2 } });
-      map.addSource('trk', { type: 'geojson', data: trackGeoJSON() });
+      map.addSource('trk', { type: 'geojson', data: trk });
       map.addLayer({ id: 'trk-glow', type: 'line', source: 'trk', paint: { 'line-color': '#F5B041', 'line-width': 8, 'line-blur': 6, 'line-opacity': 0.55 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
       map.addLayer({ id: 'trk-core', type: 'line', source: 'trk', paint: { 'line-color': '#FFE2A8', 'line-width': 2.2 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+      map.addLayer({ id: 'trk-now', type: 'line', source: 'trk', filter: ['==', ['get', 'i'], -1], paint: { 'line-color': '#FFFFFF', 'line-width': 5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
     } else {
-      for (const id of ['trk-glow', 'trk-core', 'trk-halo', 'trk-dot']) map.setLayoutProperty(id, 'visibility', 'visible');
+      for (const id of ['trk-glow', 'trk-core', 'trk-halo', 'trk-dot', 'trk-now']) map.setLayoutProperty(id, 'visibility', 'visible');
+      globeFilter(null);
     }
     const b = boundsOf(() => true);
     const center = b ? [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2] : [127, 36];
@@ -714,7 +788,7 @@ function setGlobe(on) {
   } else {
     stopSpin();
     map.setProjection({ type: 'mercator' });
-    for (const id of ['trk-glow', 'trk-core', 'trk-halo', 'trk-dot']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+    for (const id of ['trk-glow', 'trk-core', 'trk-halo', 'trk-dot', 'trk-now']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     fog.off = false; fog.draw(); fitAll();
   }
 }
@@ -934,6 +1008,248 @@ function renderDays() {
   $('dayRows').querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = () => { go('map'); setView('range', tr.dataset.day, tr.dataset.day); });
 }
 
+// ───────── 여정 영상: 점이 이동 기록을 따라 움직이며 선을 그림 ─────────
+let jmap = null, J = null, JP = null;
+const JCOL = [['핑크', '#E91E63'], ['노랑', '#F59E0B'], ['파랑', '#1E88E5']];
+const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 30, cam: 'city', fast: true, globe: false, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
+const saveJcfg = () => localStorage.setItem('mp_journey', JSON.stringify(jcfg));
+const EMPTY = { type: 'FeatureCollection', features: [] };
+
+function distM(a, b, c, d) {
+  const p1 = a * Math.PI / 180, p2 = c * Math.PI / 180, dp = p2 - p1, dl = (d - b) * Math.PI / 180;
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** 고른 기간의 길을 시간 순서대로 한 줄로 잇고, 재생 속도를 정할 '무게'를 매깁니다. */
+function buildPath(from, to) {
+  const list = segs.filter(s => s.day >= from && s.day <= to);
+  if (!list.length) return null;
+  const la = [], lo = [];
+  for (const s of list) for (const p of s.ll) { lo.push(p[0]); la.push(p[1]); }
+  const sl = [...la].sort((x, y) => x - y), so = [...lo].sort((x, y) => x - y);
+  const q = (arr, p) => arr[Math.min(arr.length - 1, Math.round((arr.length - 1) * p))];
+  const cut = la.length >= 40 ? 0.03 : 0;
+  const bounds = [[q(so, cut), q(sl, cut)], [q(so, 1 - cut), q(sl, 1 - cut)]];
+  const extent = distM(sl[0], so[0], sl[sl.length - 1], so[so.length - 1]);
+  const tol = Math.max(8, extent / 4000);            // 화면에서 구분 안 될 만큼 가까운 점은 건너뜀
+  const pts = [], day = [], gap = [];
+  for (const s of list) {
+    let last = null;
+    s.ll.forEach((p, k) => {
+      const end = k === s.ll.length - 1;
+      if (last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
+      pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); last = p;
+    });
+  }
+  const n = pts.length, W = new Float64Array(n), D = new Float64Array(n);
+  const FAR = 15000;                                 // 15km 넘는 이동은 '장거리'
+  for (let i = 1; i < n; i++) {
+    const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]);
+    D[i] = D[i - 1] + (gap[i] ? 0 : d);
+    let w = d;
+    if (jcfg.fast && d > FAR) w = FAR * (1 + Math.log(d / FAR));
+    if (gap[i]) w = Math.min(w, FAR * (1 + Math.log(Math.max(1, d / FAR))));   // 기록이 끊긴 사이는 길게 끌지 않음
+    W[i] = W[i - 1] + Math.max(w, 1);
+  }
+  return { pts, day, gap, W, D, n, bounds };
+}
+
+/** k0~k1 점을 선으로 (기록이 끊긴 곳에서는 나눔). tail이 있으면 끝에 이어 붙임 */
+function lines(P, k0, k1, tail) {
+  const out = []; let cur = [];
+  for (let k = Math.max(0, k0); k <= k1; k++) {
+    if (P.gap[k] && cur.length) { if (cur.length > 1) out.push(cur); cur = []; }
+    cur.push(P.pts[k]);
+  }
+  if (tail) cur.push(tail);
+  if (cur.length > 1) out.push(cur);
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: out } };
+}
+const pointF = (p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } });
+
+function jTitleText(P, i, km) {
+  const y0 = (P.day[0] || '').slice(0, 4);
+  const name = jcfg.name.trim() || '나';
+  const t = (jcfg.title || '{year} {name}의 Mapory').replace('{year}', y0).replace('{name}', name);
+  const d = P.day[Math.min(i, P.n - 1)];
+  return [t, `${+d.slice(0, 4)}년 ${+d.slice(5, 7)}월 · ${fmtDist(km)}`];
+}
+function setJTitle(a, b) { $('jT1').textContent = a; $('jT2').textContent = b; }
+
+function initJourney() {
+  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true } });
+  jmap.on('load', () => {
+    const col = JCOL[jcfg.col][1], L = { 'line-cap': 'round', 'line-join': 'round' };
+    for (const id of ['j-old', 'j-new', 'j-head']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
+    jmap.addLayer({ id: 'j-old', type: 'line', source: 'j-old', layout: L, paint: { 'line-color': col, 'line-width': 3, 'line-opacity': 0.6 } });
+    jmap.addLayer({ id: 'j-glow', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 14, 'line-blur': 9, 'line-opacity': 0.45 } });
+    jmap.addLayer({ id: 'j-new', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 5.5 } });
+    jmap.addLayer({ id: 'j-halo', type: 'circle', source: 'j-head', paint: { 'circle-radius': 17, 'circle-color': col, 'circle-opacity': 0.35, 'circle-blur': 0.5 } });
+    jmap.addLayer({ id: 'j-head', type: 'circle', source: 'j-head', paint: { 'circle-radius': 7, 'circle-color': '#111', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
+    jSetProjection();
+    jPreview(true);
+  });
+  jmap.on('render', jRecFrame);
+
+  // 설정 칸 채우기
+  const t = dayOf(Date.now());
+  if (!jcfg.from || !jcfg.to) { jcfg.from = t.slice(0, 4) + '-01-01'; jcfg.to = t; }
+  $('jName').value = jcfg.name; $('jTpl').value = jcfg.title; $('jFrom').value = jcfg.from; $('jTo').value = jcfg.to;
+  $('jDur').value = jcfg.dur; $('jCam').value = jcfg.cam; $('jFast').checked = jcfg.fast;
+  $('jFlat').setAttribute('aria-pressed', !jcfg.globe); $('jGlobe').setAttribute('aria-pressed', jcfg.globe);
+  const box = $('jCols');
+  JCOL.forEach(([name, col], i) => {
+    const b = document.createElement('button'); b.style.background = col; b.title = name; b.setAttribute('aria-label', '선 색 ' + name); b.setAttribute('aria-pressed', i === jcfg.col);
+    b.onclick = () => { jcfg.col = i; saveJcfg(); box.querySelectorAll('button').forEach((x, k) => x.setAttribute('aria-pressed', k === i)); jColor(); };
+    box.appendChild(b);
+  });
+  const changed = (fit) => { saveJcfg(); if (!J) jPreview(fit); };
+  $('jName').oninput = () => { jcfg.name = $('jName').value; changed(false); };
+  $('jTpl').oninput = () => { jcfg.title = $('jTpl').value; changed(false); };
+  $('jFrom').onchange = $('jTo').onchange = () => { let a = $('jFrom').value, b = $('jTo').value; if (a && b) { if (a > b) [a, b] = [b, a]; jcfg.from = a; jcfg.to = b; changed(true); } };
+  $('jDur').onchange = () => { jcfg.dur = +$('jDur').value; saveJcfg(); };
+  $('jCam').onchange = () => { jcfg.cam = $('jCam').value; saveJcfg(); };
+  $('jFast').onchange = () => { jcfg.fast = $('jFast').checked; changed(false); };
+  $('jFlat').onclick = () => { jcfg.globe = false; saveJcfg(); $('jFlat').setAttribute('aria-pressed', true); $('jGlobe').setAttribute('aria-pressed', false); jSetProjection(); jPreview(true); };
+  $('jGlobe').onclick = () => { jcfg.globe = true; saveJcfg(); $('jFlat').setAttribute('aria-pressed', false); $('jGlobe').setAttribute('aria-pressed', true); jSetProjection(); jPreview(true); };
+  document.querySelectorAll('#jPresets button').forEach(b => b.onclick = () => {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), today = dayOf(now.getTime());
+    const r = { year: [`${y}-01-01`, today], last: [`${y - 1}-01-01`, `${y - 1}-12-31`], month: [dayOf(new Date(y, m, 1).getTime()), today], d30: [addDays(today, -29), today], all: [days[0]?.day || today, today] }[b.dataset.r];
+    jcfg.from = r[0]; jcfg.to = r[1]; $('jFrom').value = r[0]; $('jTo').value = r[1]; changed(true);
+  });
+  $('jPlay').onclick = () => jStart(false);
+  $('jRec').onclick = () => jStart(true);
+  $('jStop').onclick = () => jEnd(true);
+}
+
+function jColor() {
+  if (!jmap?.isStyleLoaded()) return;
+  const col = JCOL[jcfg.col][1];
+  for (const id of ['j-old', 'j-glow', 'j-new']) jmap.setPaintProperty(id, 'line-color', col);
+  jmap.setPaintProperty('j-halo', 'circle-color', col);
+}
+function jSetProjection() {
+  if (!jmap?.isStyleLoaded()) return;
+  jmap.setProjection({ type: jcfg.globe ? 'globe' : 'mercator' });
+  if (jcfg.globe) { try { jmap.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {} }
+}
+
+/** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
+function jPreview(fit) {
+  if (!jmap?.isStyleLoaded()) return;
+  JP = buildPath(jcfg.from, jcfg.to);
+  $('jMsg').textContent = JP ? `점 ${nf.format(JP.n)}개 · ${fmtDist(JP.D[JP.n - 1])}` : '이 기간에는 기록이 없어요.';
+  $('jPlay').disabled = $('jRec').disabled = !JP;
+  if (!JP) { for (const id of ['j-old', 'j-new', 'j-head']) jmap.getSource(id).setData(EMPTY); setJTitle('', ''); $('jTitle').classList.add('hidden'); return; }
+  jmap.getSource('j-old').setData(lines(JP, 0, JP.n - 1));
+  jmap.getSource('j-new').setData(EMPTY);
+  jmap.getSource('j-head').setData(pointF(JP.pts[0]));
+  const [a, b] = jTitleText(JP, JP.n - 1, JP.D[JP.n - 1]); setJTitle(a, b); $('jTitle').classList.remove('hidden');
+  if (fit) jFit(JP, 600);
+}
+function jFit(P, duration) {
+  if (jcfg.globe) { const c = [(P.bounds[0][0] + P.bounds[1][0]) / 2, (P.bounds[0][1] + P.bounds[1][1]) / 2]; jmap.easeTo({ center: c, zoom: 3, duration }); }
+  else jmap.fitBounds(P.bounds, { padding: { top: 120, bottom: 80, left: innerWidth > 760 ? 400 : 40, right: 60 }, maxZoom: 14, duration });
+}
+function baseZoom() { const z = { near: 13.5, city: 11, country: 7.5 }[jcfg.cam] ?? 11; return jcfg.globe ? Math.min(z - 4, 5) : z; }
+
+function jStart(record) {
+  const P = buildPath(jcfg.from, jcfg.to);
+  if (!P) return;
+  jSetProjection();
+  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: baseZoom(), cam: [...P.pts[0]], endAt: 0 };
+  jmap.getSource('j-old').setData(EMPTY);
+  jmap.getSource('j-new').setData(EMPTY);
+  $('jPanel').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
+  if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: P.pts[0], zoom: J.zoom });
+  if (record) recStart();
+  requestAnimationFrame(jTick);
+}
+
+function jTick(now) {
+  if (!J) return;
+  const P = J.P, dt = J.last ? Math.min(0.1, (now - J.last) / 1000) : 0; J.last = now;
+  J.t = Math.min(J.t + dt, jcfg.dur);
+  const target = P.W[P.n - 1] * (J.t / jcfg.dur);
+  while (J.idx < P.n - 1 && P.W[J.idx] < target) J.idx++;
+  const i = J.idx, w0 = P.W[i - 1], w1 = P.W[i], f = w1 > w0 ? Math.max(0, Math.min(1, (target - w0) / (w1 - w0))) : 1;
+  const a = P.pts[i - 1], b = P.pts[i];
+  const head = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
+  const RECENT = 400, cutAt = Math.max(0, i - RECENT);
+  if (cutAt - J.oldUpto > 60 || (cutAt > 0 && J.oldUpto < 0)) { jmap.getSource('j-old').setData(lines(P, 0, cutAt)); J.oldUpto = cutAt; }
+  jmap.getSource('j-new').setData(lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, P.gap[i] ? null : head));
+  jmap.getSource('j-head').setData(pointF(head));
+  const km = P.D[i - 1] + (P.gap[i] ? 0 : (P.D[i] - P.D[i - 1]) * f);
+  const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2);
+  $('jProg').style.width = (J.t / jcfg.dur * 100).toFixed(2) + '%';
+  // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
+  if (jcfg.cam !== 'fixed' && dt > 0) {
+    const speed = distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) / dt;      // m/초
+    const lat = Math.max(-80, Math.min(80, head[1]));
+    const screenM = 40075016.686 * Math.cos(lat * Math.PI / 180) / 2 ** baseZoom() * (jmap.getCanvas().clientWidth / 512);
+    const want = Math.max(jcfg.globe ? 1.4 : 3, baseZoom() - Math.max(0, Math.log2(speed / (0.22 * screenM))));
+    const k = 1 - Math.pow(0.03, dt), kz = 1 - Math.pow(0.25, dt);
+    J.zoom += (want - J.zoom) * kz;
+    J.cam = [J.cam[0] + (head[0] - J.cam[0]) * k, J.cam[1] + (head[1] - J.cam[1]) * k];
+    jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+  }
+  J.prevHead = head;
+  if (J.t >= jcfg.dur) {
+    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jFit(P, 1200); }
+    if (now - J.endAt > 2500) { jEnd(false); return; }
+  }
+  jmap.triggerRepaint();
+  requestAnimationFrame(jTick);
+}
+
+function jEnd(aborted) {
+  if (!J) return;
+  const rec = J.rec;
+  J = null;
+  $('jPanel').classList.remove('hidden'); $('jCtl').classList.add('hidden');
+  if (rec && rec.state !== 'inactive') { rec._aborted = aborted; rec.stop(); }
+  if (aborted) jPreview(false);
+}
+
+// 영상으로 저장: 지도 그림 위에 제목 카드를 얹어 한 장씩 녹화합니다.
+function recStart() {
+  const src = jmap.getCanvas();
+  const rc = document.createElement('canvas'); rc.width = src.width; rc.height = src.height;
+  J.rc = rc; J.rctx = rc.getContext('2d');
+  const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const type = types.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(rc.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : {});
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    if (rec._aborted) { $('jMsg').textContent = '녹화를 멈췄어요.'; return; }
+    const kind = (rec.mimeType || type).includes('mp4') ? 'mp4' : 'webm';
+    const url = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || type || 'video/webm' }));
+    const a = document.createElement('a'); a.href = url; a.download = `mapory-${jcfg.from}_${jcfg.to}.${kind}`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    $('jMsg').textContent = `영상을 저장했어요 (${kind.toUpperCase()}). 다운로드 폴더를 확인해 주세요.`;
+  };
+  rec.start(500);
+  J.rec = rec;
+}
+function jRecFrame() {
+  if (!J || !J.rc) return;
+  const src = jmap.getCanvas(), c = J.rctx, rc = J.rc;
+  if (rc.width !== src.width || rc.height !== src.height) return;
+  c.drawImage(src, 0, 0);
+  const s = src.width / src.clientWidth;
+  const t1 = $('jT1').textContent, t2 = $('jT2').textContent;
+  c.font = `800 ${24 * s}px Pretendard, sans-serif`; const w1 = c.measureText(t1).width;
+  c.font = `500 ${14 * s}px Pretendard, sans-serif`; const w2 = c.measureText(t2).width;
+  const bw = Math.max(w1, w2) + 52 * s, bh = 76 * s, bx = (rc.width - bw) / 2, by = 20 * s;
+  c.fillStyle = 'rgba(255,255,255,0.93)'; c.beginPath(); c.roundRect(bx, by, bw, bh, 18 * s); c.fill();
+  c.textAlign = 'center'; c.fillStyle = '#111';
+  c.font = `800 ${24 * s}px Pretendard, sans-serif`; c.fillText(t1, rc.width / 2, by + 34 * s);
+  c.fillStyle = '#555'; c.font = `500 ${14 * s}px Pretendard, sans-serif`; c.fillText(t2, rc.width / 2, by + 60 * s);
+}
+
 // ───────── 화면 전환 ─────────
 function go(page) {
   document.querySelectorAll('nav button[data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
@@ -941,6 +1257,7 @@ function go(page) {
   hideTip();
   // 숨겨져 있던 지도는 크기가 0이 되므로, 다시 보일 때 바로 크기를 맞춥니다.
   if (page === 'map') { if (!map) { initMap(); setView('all', null, null, false); } else { map.resize(); fog.draw(); } }
+  if (page === 'journey') { if (!jmap) initJourney(); else jmap.resize(); }
   if (page === 'compare') { if (!cmp) initCompare(); else { cmp.A.map.resize(); cmp.B.map.resize(); applyCompare(); } }
 }
 document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
