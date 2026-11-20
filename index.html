@@ -442,7 +442,9 @@ function demoData() {
     if ((k * 7) % 5 === 0 && k > 3) continue;
     const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - k);
     const j = k % 40;
-    const tr = [walk(37.5665 + j * 0.0012, 126.978 - j * 0.0009, 50, k + 1), walk(37.5600 - j * 0.001, 126.990 + j * 0.0011, 40, k + 2)];
+    let tr = [walk(37.5665 + j * 0.0012, 126.978 - j * 0.0009, 50, k + 1), walk(37.5600 - j * 0.001, 126.990 + j * 0.0011, 40, k + 2)];
+    if (k >= 12 && k <= 14) tr = [walk(35.6812 + (k - 12) * 0.004, 139.7671, 60, k + 3)];       // 도쿄 여행
+    if (k >= 55 && k <= 57) tr = [walk(48.8566 + (k - 55) * 0.003, 2.3522, 60, k + 4)];         // 파리 여행
     if (k === 30) tr.push([[35.1587, 129.1604], [35.163, 129.165], [35.168, 129.171]]);
     if (k === 90) tr.push([[33.4996, 126.5312], [33.505, 126.54], [33.51, 126.55]]);
     ds.push({ day: dayOf(d.getTime()), track: tr.map(encodeLine).join(' '), dist_walk: 1800 + (k * 37) % 4000, dist_car: (k % 3) ? 4000 + (k * 53) % 9000 : 0, dist_plane: k === 90 ? 450000 : 0, area_km2: 0.01 + ((k * 13) % 30) / 1000, steps: 4000 + (k * 431) % 9000 });
@@ -1055,7 +1057,21 @@ function buildPath(from, to) {
     if (gap[i]) w = Math.min(w, FAR * (1 + Math.log(Math.max(1, d / FAR))));   // 기록이 끊긴 사이는 길게 끌지 않음
     W[i] = W[i - 1] + Math.max(w, 1);
   }
-  return { pts, day, gap, W, D, n, bounds };
+  // 지구본: 다른 나라·먼 도시로 넘어가는 이동(HOP 이상)은 멀어졌다 다가갈 시간을 넉넉히 줌
+  const hop = new Float64Array(n);
+  if (jcfg.globe && n > 1) {
+    const HOP = 120000, idx = [];
+    for (let i = 1; i < n; i++) { const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]); if (d > HOP) { hop[i] = d; idx.push(i); } }
+    if (idx.length) {
+      const total = W[n - 1];
+      const minW = Math.min(total * 3.2 / Math.max(5, jcfg.dur), total * 0.6 / idx.length);   // 한 번에 약 3초
+      const w = new Float64Array(n);
+      for (let i = 1; i < n; i++) w[i] = W[i] - W[i - 1];
+      for (const i of idx) w[i] = Math.max(w[i], minW);
+      for (let i = 1; i < n; i++) W[i] = W[i - 1] + w[i];
+    }
+  }
+  return { pts, day, gap, W, D, n, bounds, hop };
 }
 
 /** k0~k1 점을 선으로 (기록이 끊긴 곳에서는 나눔). tail이 있으면 끝에 이어 붙임 */
@@ -1155,13 +1171,17 @@ function jFit(P, duration) {
   if (jcfg.globe) { const c = [(P.bounds[0][0] + P.bounds[1][0]) / 2, (P.bounds[0][1] + P.bounds[1][1]) / 2]; jmap.easeTo({ center: c, zoom: 3, duration }); }
   else jmap.fitBounds(P.bounds, { padding: { top: 120, bottom: 80, left: innerWidth > 760 ? 400 : 40, right: 60 }, maxZoom: 14, duration });
 }
-function baseZoom() { const z = { near: 13.5, city: 11, country: 7.5 }[jcfg.cam] ?? 11; return jcfg.globe ? Math.min(z - 4, 5) : z; }
+function baseZoom() { return { near: 13.5, city: 11, country: 7.5 }[jcfg.cam] ?? 11; }
+/** 거리 d(m)가 화면 폭의 약 60%에 들어오는 줌 */
+function zoomForSpan(d, lat) { const w = jmap.getCanvas().clientWidth || 1000; return Math.log2(40075016.686 * Math.cos(Math.max(-80, Math.min(80, lat)) * Math.PI / 180) * (w / 512) * 0.6 / Math.max(d, 1)); }
+const lonDiff = (a, b) => { let d = b - a; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
+const lonWrap = x => ((x + 540) % 360) - 180;
 
 function jStart(record) {
   const P = buildPath(jcfg.from, jcfg.to);
   if (!P) return;
   jSetProjection();
-  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: baseZoom(), cam: [...P.pts[0]], endAt: 0 };
+  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: baseZoom(), hopStart: baseZoom(), cam: [...P.pts[0]], endAt: 0 };
   jmap.getSource('j-old').setData(EMPTY);
   jmap.getSource('j-new').setData(EMPTY);
   $('jPanel').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
@@ -1178,7 +1198,7 @@ function jTick(now) {
   while (J.idx < P.n - 1 && P.W[J.idx] < target) J.idx++;
   const i = J.idx, w0 = P.W[i - 1], w1 = P.W[i], f = w1 > w0 ? Math.max(0, Math.min(1, (target - w0) / (w1 - w0))) : 1;
   const a = P.pts[i - 1], b = P.pts[i];
-  const head = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  const head = [lonWrap(a[0] + lonDiff(a[0], b[0]) * f), a[1] + (b[1] - a[1]) * f];
   // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
   const RECENT = 400, cutAt = Math.max(0, i - RECENT);
   if (cutAt - J.oldUpto > 60 || (cutAt > 0 && J.oldUpto < 0)) { jmap.getSource('j-old').setData(lines(P, 0, cutAt)); J.oldUpto = cutAt; }
@@ -1194,12 +1214,25 @@ function jTick(now) {
     J.speed = (J.speed ?? raw) + (raw - (J.speed ?? raw)) * (1 - Math.pow(0.1, dt));
     const lat = Math.max(-80, Math.min(80, head[1]));
     const screenM = 40075016.686 * Math.cos(lat * Math.PI / 180) / 2 ** baseZoom() * (jmap.getCanvas().clientWidth / 512);
-    const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
-    const floor = longHop ? (jcfg.globe ? 1.4 : 3) : baseZoom() - 1.5;
-    const want = Math.max(floor, baseZoom() - Math.max(0, Math.log2(J.speed / (0.6 * screenM))));
-    const k = 1 - Math.pow(0.03, dt), kz = 1 - Math.pow(0.25, dt);
-    J.zoom += (want - J.zoom) * kz;
-    J.cam = [J.cam[0] + (head[0] - J.cam[0]) * k, J.cam[1] + (head[1] - J.cam[1]) * k];
+    const hopD = P.hop ? P.hop[i] : 0;
+    if (jcfg.globe && hopD) {
+      // 나라를 넘는 이동: 출발지에서 멀어져 지구가 보일 만큼 축소 → 도착지로 다가가며 다시 확대
+      const far = Math.max(1.3, Math.min(baseZoom() - 2, zoomForSpan(hopD, (a[1] + b[1]) / 2)));
+      const arc = Math.pow(Math.sin(Math.PI * f), 0.7);
+      const want = J.hopStart + (baseZoom() - J.hopStart) * f;              // 출발 줌 → 도착 줌으로 이어짐
+      J.zoom = want - (want - far) * arc;
+      J.cam = head.slice();
+      J.inHop = true;
+    } else {
+      if (J.inHop) { J.inHop = false; J.speed = 0; }
+      const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
+      const floor = longHop ? 3 : baseZoom() - 1.5;
+      const want = Math.max(floor, baseZoom() - Math.max(0, Math.log2(J.speed / (0.6 * screenM))));
+      const k = 1 - Math.pow(0.03, dt), kz = 1 - Math.pow(0.25, dt);
+      J.zoom += (want - J.zoom) * kz;
+      J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], head[0]) * k), J.cam[1] + (head[1] - J.cam[1]) * k];
+      J.hopStart = J.zoom;
+    }
     jmap.jumpTo({ center: J.cam, zoom: J.zoom });
   }
   J.prevHead = head;
