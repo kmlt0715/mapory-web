@@ -5,12 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Mapory</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
 <style>
   :root {
-    --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758;
+    --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758; --grid: #2A3544;
     --amber: #F5B041; --amber-dark: #3A2C10; --amber-text: #FFD27A; --on-amber: #1A1408;
     --txt: #F3EFE6; --sub: #C9D2DD; --green: #5FD3A2; --sky: #7FB6F2;
   }
@@ -18,7 +17,7 @@
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt);
     font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
   button { font-family: inherit; cursor: pointer; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
   .hidden { display: none !important; }
 
   /* 로그인 */
@@ -27,15 +26,16 @@
   .login-card h1 { margin: 0; font-size: 30px; color: var(--amber); }
   .login-card p { margin: 0 0 6px; color: var(--sub); font-size: 14px; line-height: 1.6; }
   label { font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px; }
-  input[type=email], input[type=password], input[type=date] {
+  input[type=email], input[type=password], input[type=date], select {
     height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 15px; font-family: inherit; }
-  input[type=date] { height: 40px; color-scheme: dark; }
-  .btn { height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; padding: 0 16px; }
+  input[type=date], select { height: 40px; color-scheme: dark; font-size: 14px; padding: 0 10px; }
+  .btn { height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; padding: 0 16px; white-space: nowrap; }
   .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
+  .btn.on { background: var(--amber-dark); border-color: var(--amber); color: var(--amber-text); font-weight: 700; }
   .err { color: #FF9C8A; font-size: 13px; min-height: 18px; }
 
   /* 앱 틀 */
-  #app { height: 100%; display: grid; grid-template-columns: 220px 1fr; }
+  #app { height: 100%; display: grid; grid-template-columns: 210px 1fr; }
   nav { background: var(--panel); display: flex; flex-direction: column; padding: 20px 12px; gap: 4px; }
   nav .brand { font-size: 22px; font-weight: 800; color: var(--amber); padding: 4px 12px 18px; }
   nav .brand small { display: block; font-size: 12px; color: var(--sub); font-weight: 500; margin-top: 4px; }
@@ -45,15 +45,16 @@
   nav .who { font-size: 12px; color: var(--sub); padding: 0 12px 8px; word-break: break-all; }
   main { position: relative; overflow: hidden; }
   .page { position: absolute; inset: 0; overflow: auto; }
-  .scroll { max-width: 1100px; margin: 0 auto; padding: 28px 28px 60px; }
+  .scroll { max-width: 1240px; margin: 0 auto; padding: 28px 28px 60px; }
   h2 { margin: 0 0 18px; font-size: 26px; }
   h3 { margin: 0; font-size: 16px; }
+  .muted { color: var(--sub); font-size: 13px; }
 
-  /* 지도 */
-  #map { position: absolute; inset: 0; }
-  #fog { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* 지도 공통 */
+  .mapbox { position: absolute; inset: 0; background: #070A10; }
+  .fog { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
   .float { position: absolute; z-index: 2; background: rgba(20,27,36,.95); border-radius: 18px; padding: 14px; }
-  #mapPanel { top: 16px; left: 16px; width: 330px; display: flex; flex-direction: column; gap: 12px; }
+  #mapPanel { top: 16px; left: 16px; width: 340px; display: flex; flex-direction: column; gap: 12px; }
   .seg { display: flex; gap: 6px; background: var(--field); border-radius: 12px; padding: 4px; }
   .seg button { flex: 1; height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--sub); font-size: 14px; }
   .seg button[aria-pressed=true] { background: var(--amber); color: var(--on-amber); font-weight: 700; }
@@ -63,11 +64,17 @@
   .stat b { display: block; font-size: 17px; }
   .stat span { font-size: 11px; color: var(--sub); }
   .stat.accent b { color: var(--amber); }
-  #fogPick { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--sub); }
-  #fogPick button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
-  #fogPick button[aria-pressed=true] { border-color: var(--amber); }
-  .pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 2.5px solid var(--amber); display: grid; place-items: center; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: pointer; }
+  .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tools .btn { height: 40px; font-size: 13px; padding: 0 8px; }
+  .fogPick { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--sub); }
+  .fogPick button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  .fogPick button[aria-pressed=true] { border-color: var(--amber); }
+
+  /* 추억 핀 */
+  .pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 2.5px solid var(--amber); display: grid; place-items: center; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,.35); padding: 0; }
   .pin.plain { width: 22px; height: 22px; background: var(--amber); border-color: var(--panel); }
+  .pin.photo { width: 56px; height: 56px; border: 3px solid #fff; overflow: hidden; background: var(--panel); }
+  .pin.photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .maplibregl-popup-content { background: var(--panel); color: var(--txt); border-radius: 14px; padding: 12px; font-family: inherit; max-width: 260px; }
   .maplibregl-popup-tip { border-top-color: var(--panel) !important; border-bottom-color: var(--panel) !important; }
   .maplibregl-popup-close-button { color: var(--sub); font-size: 18px; width: 32px; height: 32px; }
@@ -77,16 +84,34 @@
   .pop .b { font-size: 13px; margin-top: 6px; line-height: 1.5; white-space: pre-wrap; max-height: 120px; overflow: auto; }
   .pop .link { margin-top: 8px; background: none; border: 0; color: var(--amber-text); padding: 4px 0; font-size: 13px; }
 
+  /* 타임랩스 */
+  #tlBar { left: 50%; bottom: 28px; transform: translateX(-50%); width: min(720px, calc(100% - 40px)); display: flex; flex-direction: column; gap: 10px; }
+  #tlBar .top { display: flex; align-items: baseline; gap: 14px; }
+  #tlDate { font-size: 30px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+  #tlInfo { color: var(--sub); font-size: 14px; flex: 1; }
+  #tlBar .ctl { display: flex; gap: 8px; align-items: center; }
+  #tlRange { flex: 1; accent-color: var(--amber); height: 30px; }
+  #globeHint { top: 16px; right: 16px; font-size: 13px; color: var(--sub); max-width: 260px; }
+
+  /* 비교 */
+  #page-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--panel); }
+  #page-compare.hidden { display: none; }
+  .cmpSide { position: relative; overflow: hidden; }
+  .cmpHead { top: 12px; left: 12px; right: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .cmpHead .row1 { display: flex; gap: 8px; align-items: center; }
+  .cmpHead .tag { font-weight: 800; font-size: 15px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--amber); color: var(--on-amber); flex: none; }
+  #cmpPreset { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 3; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
   /* 카드 */
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-  .card { background: var(--panel); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .big { font-size: 32px; font-weight: 800; color: var(--amber); }
-  .muted { color: var(--sub); font-size: 13px; }
-  .bar { height: 8px; border-radius: 4px; background: #2A3544; overflow: hidden; }
+  .card { background: var(--panel); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .big { font-size: 32px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--amber); border-radius: 4px; min-width: 2px; }
   .bar.sky i { background: var(--sky); } .bar.green i { background: var(--green); }
   .row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
   .row .v { color: var(--sub); white-space: nowrap; }
+  section { margin-top: 32px; }
   .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
   .badge { background: var(--panel); border-radius: 18px; padding: 14px 8px; text-align: center; border: 1px solid transparent; }
   .badge.got { border-color: var(--amber); }
@@ -95,7 +120,32 @@
   .badge b { display: block; font-size: 13px; margin-top: 4px; }
   .badge.got b { color: var(--amber-text); }
   .badge span { font-size: 11px; color: var(--sub); }
-  section { margin-top: 32px; }
+
+  /* 대시보드 */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tile { background: var(--panel); border-radius: 18px; padding: 16px 18px; }
+  .tile span { font-size: 12px; color: var(--sub); }
+  .tile b { display: block; font-size: 24px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .tile b.a { color: var(--amber); }
+  .tile small { display: block; font-size: 12px; color: var(--sub); margin-top: 4px; }
+  .dash2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-top: 14px; }
+  .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+  .cal i { width: 13px; height: 13px; border-radius: 3px; background: var(--grid); display: block; cursor: pointer; }
+  .cal i.empty { background: transparent; cursor: default; }
+  .calMonths { display: grid; grid-auto-flow: column; gap: 3px; font-size: 11px; color: var(--sub); height: 14px; }
+  .calMonths span { width: 13px; white-space: nowrap; overflow: visible; }
+  .legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--sub); }
+  .legend i { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+  .heat { display: grid; grid-template-columns: 28px repeat(24, 1fr); gap: 2px; font-size: 10px; color: var(--sub); align-items: center; }
+  .heat i { aspect-ratio: 1; border-radius: 3px; background: var(--grid); display: block; }
+  .heat .h { text-align: center; }
+  .months { display: flex; align-items: flex-end; gap: 8px; height: 170px; }
+  .months .m { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0; }
+  .months .m i { width: 100%; max-width: 38px; background: var(--amber); border-radius: 4px 4px 0 0; min-height: 2px; display: block; }
+  .months .m span { font-size: 11px; color: var(--sub); }
+  .months .m b { font-size: 10px; color: var(--sub); font-weight: 500; white-space: nowrap; }
+  .strip { display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+  #tip { position: fixed; z-index: 60; pointer-events: none; background: #0B1017; color: var(--txt); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; white-space: nowrap; }
 
   /* 앨범 */
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -104,7 +154,7 @@
   .month { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 0 10px; }
   .month h3 { font-size: 18px; }
   .album { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
-  .mcard { position: relative; aspect-ratio: .86; border-radius: 18px; overflow: hidden; background: var(--panel); border: 0; padding: 0; color: #fff; text-align: left; }
+  .mcard { position: relative; aspect-ratio: .86; border-radius: 18px; overflow: hidden; background: var(--panel); border: 0; padding: 0; color: #fff; text-align: left; width: 100%; }
   .mcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .mcard .ph { width: 100%; height: 100%; display: grid; place-items: center; font-size: 46px; padding-bottom: 40px; }
   .mcard .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 110px; background: linear-gradient(transparent, rgba(0,0,0,.88)); }
@@ -116,7 +166,7 @@
 
   /* 하루 기록 표 */
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: right; padding: 12px 10px; border-bottom: 1px solid #2A3544; }
+  th, td { text-align: right; padding: 12px 10px; border-bottom: 1px solid var(--grid); }
   th:first-child, td:first-child { text-align: left; }
   th { color: var(--sub); font-weight: 500; font-size: 12px; }
   tbody tr { cursor: pointer; }
@@ -136,12 +186,14 @@
 
   #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50; color: var(--sub); font-size: 15px; }
 
+  @media (max-width: 980px) { .dash2 { grid-template-columns: 1fr; } }
   @media (max-width: 760px) {
     #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-    nav { order: 2; flex-direction: row; padding: 6px; gap: 2px; justify-content: space-around; }
+    nav { order: 2; flex-direction: row; padding: 6px; gap: 2px; overflow-x: auto; }
     nav .brand, nav .spacer, nav .who, nav #logout { display: none; }
-    nav button { text-align: center; font-size: 13px; padding: 10px 6px; flex: 1; }
+    nav button { text-align: center; font-size: 12px; padding: 10px 8px; flex: 1; white-space: nowrap; }
     #mapPanel { left: 10px; right: 10px; top: 10px; width: auto; }
+    #page-compare { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
     .scroll { padding: 18px 14px 40px; }
   }
 </style>
@@ -149,6 +201,7 @@
 <body>
 
 <div id="loading">불러오는 중…</div>
+<div id="tip" class="hidden" role="tooltip"></div>
 
 <!-- 로그인 -->
 <div id="login" class="hidden">
@@ -166,7 +219,9 @@
 <div id="app" class="hidden">
   <nav aria-label="메뉴">
     <div class="brand">Mapory<small id="dplus"></small></div>
-    <button data-page="map" aria-current="page">🗺️ 지도</button>
+    <button data-page="home" aria-current="page">🏠 한눈에</button>
+    <button data-page="map">🗺️ 지도</button>
+    <button data-page="compare">🪞 나란히 비교</button>
     <button data-page="stats">📊 통계</button>
     <button data-page="album">📔 추억 앨범</button>
     <button data-page="days">📅 하루 기록</button>
@@ -175,10 +230,12 @@
     <button id="logout">로그아웃</button>
   </nav>
   <main>
+    <!-- 한눈에 -->
+    <div class="page" id="page-home"><div class="scroll" id="homeBox"></div></div>
+
     <!-- 지도 -->
-    <div class="page" id="page-map">
-      <div id="map"></div>
-      <canvas id="fog"></canvas>
+    <div class="page hidden" id="page-map">
+      <div id="map" class="mapbox"></div>
       <div class="float" id="mapPanel">
         <div class="seg" role="group" aria-label="보기">
           <button id="mAll" aria-pressed="true">누적</button>
@@ -192,7 +249,37 @@
           <div class="stat"><b id="sDist">-</b><span>이동 거리</span></div>
           <div class="stat"><b id="sMem">-</b><span>추억</span></div>
         </div>
-        <div id="fogPick" aria-label="안개 색">안개</div>
+        <div class="tools">
+          <button class="btn" id="bTl">▶ 타임랩스</button>
+          <button class="btn" id="bGlobe" aria-pressed="false">🌍 지구본</button>
+          <button class="btn" id="bPhoto" aria-pressed="false">📷 사진 지도</button>
+        </div>
+        <div class="fogPick" id="fogPick" aria-label="안개 색">안개</div>
+      </div>
+      <div class="float hidden" id="globeHint">마우스로 끌어 지구를 돌려 보세요. 다닌 길이 노랗게 빛나요. 확대하면 지도 위에서 자세히 볼 수 있어요.</div>
+      <div class="float hidden" id="tlBar">
+        <div class="top"><div id="tlDate">-</div><div id="tlInfo"></div></div>
+        <div class="ctl">
+          <button class="btn primary" id="tlPlay">일시정지</button>
+          <input type="range" id="tlRange" min="0" max="0" value="0" aria-label="재생 위치">
+          <button class="btn" id="tlSpeed">1배</button>
+          <button class="btn" id="tlClose">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 나란히 비교 -->
+    <div class="page hidden" id="page-compare">
+      <div class="cmpSide"><div id="mapA" class="mapbox"></div>
+        <div class="float cmpHead"><div class="row1"><span class="tag">A</span><input type="date" id="aFrom" aria-label="A 시작일"><span class="muted">–</span><input type="date" id="aTo" aria-label="A 종료일"></div>
+          <div class="stats3" id="aStats"></div></div></div>
+      <div class="cmpSide"><div id="mapB" class="mapbox"></div>
+        <div class="float cmpHead"><div class="row1"><span class="tag" style="background:var(--sky)">B</span><input type="date" id="bFrom" aria-label="B 시작일"><span class="muted">–</span><input type="date" id="bTo" aria-label="B 종료일"></div>
+          <div class="stats3" id="bStats"></div></div></div>
+      <div id="cmpPreset">
+        <button class="btn" data-p="month">이번 달 vs 지난달</button>
+        <button class="btn" data-p="year">올해 vs 작년</button>
+        <button class="btn" data-p="week">이번 주 vs 지난주</button>
       </div>
     </div>
 
@@ -228,27 +315,44 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SB_URL = 'https://arqvovxynxwxemxvpewl.supabase.co';
 const SB_KEY = 'sb_publishable_r2uvYJFKDVaCtmTgYoyojg_Vh4ithCC';
 const sb = createClient(SB_URL, SB_KEY);
+const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 const $ = (id) => document.getElementById(id);
 const FOGS = [['흰 안개', '#F4F6F8'], ['밤 안개', '#25303E'], ['새벽 보라', '#9A91D4'], ['노을', '#F2B8A0'], ['숲', '#A9C9B0'], ['바다', '#9CC4E0']];
 const ICON_NAMES = { '✈️':'여행','🍽️':'음식','☕':'카페','🍺':'술자리','🍰':'디저트','🛍️':'쇼핑','🏠':'집','💼':'일','📚':'공부','🏃':'운동','⛰️':'산','🌊':'바다','🏕️':'캠핑','🌸':'산책','🚗':'드라이브','🎬':'영화','🎵':'공연','🎮':'놀이','📷':'사진','❤️':'데이트','👪':'가족','👫':'친구','🐶':'반려동물','🎂':'기념일','🏨':'숙소','⛳':'골프','🏥':'병원','⛪':'명소','⭐':'특별' };
+const DOW = '일월화수목금토';
 
 let uid = null, days = [], mems = [], summary = null;
-let segs = [];          // 길 구간: { day, mx: Float64Array, my: Float64Array }
-let photoUrl = {};      // 사진 경로 → 임시 주소
+let segs = [];          // 길 구간: { day, mx, my, ll: [[lon,lat]...] }
+let photoUrl = {};
 let view = { mode: 'all', from: null, to: null };
 let fogIdx = +(localStorage.getItem('mp_fog') ?? 0) || 0;
+let photoMode = false;
 
-// ───────── 숫자 표시 ─────────
+// ───────── 숫자·날짜 ─────────
 const nf = new Intl.NumberFormat('ko-KR');
 function fmtDist(m) { return m < 1000 ? Math.round(m) + ' m' : m < 100000 ? (m / 1000).toFixed(1) + ' km' : nf.format(Math.round(m / 1000)) + ' km'; }
 function fmtArea(k) { return k < 0.01 ? nf.format(Math.round(k * 1e6)) + ' m²' : k < 100 ? k.toFixed(2) + ' km²' : nf.format(Math.round(k)) + ' km²'; }
 function fmtPct(p) { if (!(p > 0)) return '0%'; const d = Math.min(12, Math.max(1, Math.ceil(-Math.log10(p)) + 1)); return p.toFixed(d) + '%'; }
 function fmtDate(ts) { const d = new Date(ts); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; }
-function fmtDayLabel(s) { const d = new Date(s + 'T00:00:00'); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} (${'일월화수목금토'[d.getDay()]})`; }
+function fmtDayLabel(s) { const d = new Date(s + 'T00:00:00'); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} (${DOW[d.getDay()]})`; }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function hours(ms) { const m = Math.round(ms / 60000); return m < 60 ? m + '분' : Math.floor(m / 60) + '시간 ' + (m % 60) + '분'; }
 function bar(frac, cls = '') { return `<div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, frac * 100)).toFixed(2)}%"></i></div>`; }
+function dayOf(ts) { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function addDays(s, n) { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return dayOf(d.getTime()); }
+const total = (d) => d.dist_walk + d.dist_car + d.dist_plane;
+function sumRange(a, b) {
+  const ds = days.filter(d => d.day >= a && d.day <= b);
+  return { dist: ds.reduce((s, d) => s + total(d), 0), area: ds.reduce((s, d) => s + d.area_km2, 0), steps: ds.reduce((s, d) => s + (d.steps || 0), 0), n: ds.length, mem: mems.filter(m => { const k = dayOf(m.ts); return k >= a && k <= b; }).length };
+}
+
+// 마우스를 올리면 뜨는 설명
+const tip = $('tip');
+function showTip(e, html) { tip.innerHTML = html; tip.classList.remove('hidden'); const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+function hideTip() { tip.classList.add('hidden'); }
+document.addEventListener('mouseover', (e) => { const t = e.target.closest('[data-tip]'); if (t) showTip(e, t.dataset.tip); });
+document.addEventListener('mousemove', (e) => { const t = e.target.closest('[data-tip]'); if (t) showTip(e, t.dataset.tip); else hideTip(); });
 
 // ───────── 길 풀기 (구글 인코딩 폴리라인) ─────────
 function decode(str) {
@@ -264,8 +368,39 @@ function decode(str) {
   }
   return out;
 }
+function encodeLine(pts) {
+  let out = '', pl = 0, po = 0;
+  const e = (v) => { v = v < 0 ? ~(v << 1) : v << 1; while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } out += String.fromCharCode(v + 63); };
+  for (const [la, lo] of pts) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5); e(a - pl); e(b - po); pl = a; po = b; }
+  return out;
+}
 const mercX = (lon) => (lon + 180) / 360;
 const mercY = (lat) => { const r = Math.max(-85, Math.min(85, lat)) * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+
+// ───────── 시험용 모드 (?demo): 로그인 없이 가짜 기록으로 화면만 확인 ─────────
+const DEMO = new URLSearchParams(location.search).has('demo');
+function demoData() {
+  const t = new Date(); const ds = [];
+  const walk = (lat, lon, n, seed) => { const pts = [[lat, lon]]; let dir = seed; for (let i = 0; i < n; i++) { if (i % 9 === 0) dir += (i % 2 ? 1 : -1) * Math.PI / 2 * (seed % 2 ? 1 : -1); lat += Math.cos(dir) * 0.00018; lon += Math.sin(dir) * 0.00022; pts.push([lat, lon]); } return pts; };
+  for (let k = 0; k < 200; k++) {
+    if ((k * 7) % 5 === 0 && k > 3) continue;
+    const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - k);
+    const j = k % 40;
+    const tr = [walk(37.5665 + j * 0.0012, 126.978 - j * 0.0009, 50, k + 1), walk(37.5600 - j * 0.001, 126.990 + j * 0.0011, 40, k + 2)];
+    if (k === 30) tr.push([[35.1587, 129.1604], [35.163, 129.165], [35.168, 129.171]]);
+    if (k === 90) tr.push([[33.4996, 126.5312], [33.505, 126.54], [33.51, 126.55]]);
+    ds.push({ day: dayOf(d.getTime()), track: tr.map(encodeLine).join(' '), dist_walk: 1800 + (k * 37) % 4000, dist_car: (k % 3) ? 4000 + (k * 53) % 9000 : 0, dist_plane: k === 90 ? 450000 : 0, area_km2: 0.01 + ((k * 13) % 30) / 1000, steps: 4000 + (k * 431) % 9000 });
+  }
+  return ds.sort((a, b) => a.day.localeCompare(b.day));
+}
+function demoSummary(now) {
+  const week = Array.from({ length: 7 }, (_, w) => Array.from({ length: 24 }, (_, h) => Math.round((h >= 7 && h <= 9 ? 9000 : h >= 18 && h <= 20 ? 7000 : h >= 12 && h <= 13 ? 3000 : h < 6 ? 0 : 800) * (w === 0 || w === 6 ? (h >= 10 && h <= 17 ? 2.5 : 0.4) : 1))));
+  return { updated: now, startTs: now - 210 * 864e5, area: 3.6, earthPct: 3.6 / 510072000 * 100, townTotal: 251, week,
+    countries: [{ name: '대한민국', area: 3.6, pct: 0.0036, regions: [{ name: '서울특별시', area: 3.2, pct: 0.53 }, { name: '부산광역시', area: 0.2, pct: 0.026 }, { name: '제주특별자치도', area: 0.2, pct: 0.011 }] }],
+    towns: [{ name: '서울특별시 중구', area: 1.25, pct: 12.5 }, { name: '서울특별시 종로구', area: 1.1, pct: 4.6 }, { name: '부산광역시 해운대구', area: 0.2, pct: 0.39 }],
+    badges: [{ emoji: '👟', title: '첫걸음', desc: '처음 1km 이동', got: true }, { emoji: '🚶', title: '동네 한 바퀴', desc: '누적 10km', got: true }, { emoji: '🗺️', title: '먼 길', desc: '누적 100km', got: false }],
+    places: [{ name: '집', near: '서울특별시 중구', visits: 120, ms: 3.1e9 }, { name: '', near: '서울특별시 종로구', visits: 44, ms: 4.2e8 }] };
+}
 
 // ───────── 데이터 읽기 ─────────
 async function fetchAll(table, cols, order) {
@@ -279,25 +414,6 @@ async function fetchAll(table, cols, order) {
   return out;
 }
 
-// 시험용 모드 (주소 끝에 ?demo): 로그인 없이 가짜 기록으로 화면만 확인합니다.
-const DEMO = new URLSearchParams(location.search).has('demo');
-function encodeLine(pts) {
-  let out = '', pl = 0, po = 0;
-  const e = (v) => { v = v < 0 ? ~(v << 1) : v << 1; while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } out += String.fromCharCode(v + 63); };
-  for (const [la, lo] of pts) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5); e(a - pl); e(b - po); pl = a; po = b; }
-  return out;
-}
-function demoData() {
-  const t = new Date(); const ds = [];
-  const walk = (lat, lon, n, seed) => { const pts = [[lat, lon]]; let dir = seed; for (let i = 0; i < n; i++) { if (i % 9 === 0) dir += (i % 2 ? 1 : -1) * Math.PI / 2 * (seed % 2 ? 1 : -1); lat += Math.cos(dir) * 0.00018; lon += Math.sin(dir) * 0.00022; pts.push([lat, lon]); } return pts; };
-  for (let k = 0; k < 12; k++) {
-    const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - k);
-    const tr = [walk(37.5665 + k * 0.0012, 126.978 - k * 0.0009, 60, k + 1), walk(37.5600 - k * 0.001, 126.990 + k * 0.0011, 45, k + 2)].map(encodeLine).join(' ');
-    ds.push({ day: dayOf(d.getTime()), track: tr, dist_walk: 2400 + k * 130, dist_car: k % 3 ? 8200 : 0, dist_plane: 0, area_km2: 0.021 + k * 0.002, steps: 6200 + k * 450 });
-  }
-  return ds.sort((a, b) => a.day.localeCompare(b.day));
-}
-
 async function loadData() {
   $('loading').textContent = '기록을 불러오는 중…';
   if (DEMO) {
@@ -306,19 +422,17 @@ async function loadData() {
     mems = [
       { id: 1, ts: now - 864e5, lat: 37.5700, lon: 126.9768, title: '광화문 산책', body: '시험용 추억이에요.', icon: '🌸', photos: [] },
       { id: 2, ts: now - 3 * 864e5, lat: 37.5636, lon: 126.9826, title: '을지로 커피', body: '', icon: '☕', photos: [] },
-      { id: 3, ts: now - 6 * 864e5, lat: 37.5580, lon: 126.9940, title: '남산 아래', body: '', icon: '', photos: [] },
+      { id: 3, ts: now - 30 * 864e5, lat: 35.1630, lon: 129.1650, title: '해운대 바다', body: '', icon: '🌊', photos: [] },
+      { id: 4, ts: now - 90 * 864e5, lat: 33.5050, lon: 126.5400, title: '제주 여행', body: '', icon: '✈️', photos: [] },
     ];
-    summary = { updated: now, startTs: now - 20 * 864e5, area: 0.36, earthPct: 0.36 / 510072000 * 100, townTotal: 251,
-      countries: [{ name: '대한민국', area: 0.36, pct: 0.00036, regions: [{ name: '서울특별시', area: 0.36, pct: 0.06 }] }],
-      towns: [{ name: '서울특별시 중구', area: 0.25, pct: 2.5 }, { name: '서울특별시 종로구', area: 0.11, pct: 0.46 }],
-      badges: [{ emoji: '👟', title: '첫걸음', desc: '처음 1km 이동', got: true }, { emoji: '🚶', title: '동네 한 바퀴', desc: '누적 10km', got: false }], places: [] };
+    summary = demoSummary(now);
   } else {
-  [days, mems] = await Promise.all([
-    fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'),
-    fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'),
-  ]);
-  const s = await sb.from('summary').select('data,updated_at').maybeSingle();
-  summary = s.data?.data ?? null;
+    [days, mems] = await Promise.all([
+      fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'),
+      fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'),
+    ]);
+    const s = await sb.from('summary').select('data,updated_at').maybeSingle();
+    summary = s.data?.data ?? null;
   }
   segs = [];
   for (const d of days) {
@@ -327,138 +441,158 @@ async function loadData() {
       const pts = decode(part); if (!pts.length) continue;
       const mx = new Float64Array(pts.length), my = new Float64Array(pts.length);
       pts.forEach((p, k) => { mx[k] = mercX(p[1]); my[k] = mercY(p[0]); });
-      segs.push({ day: d.day, mx, my, lat: pts[0][0], lon: pts[0][1] });
+      segs.push({ day: d.day, mx, my, ll: pts.map(p => [p[1], p[0]]) });
     }
   }
-  // 사진 임시 주소 (1시간 유효). 비공개 보관함이라 로그인한 본인에게만 발급됩니다.
   photoUrl = {};
   if (DEMO) return;
+  // 사진 임시 주소 (1시간 유효). 비공개 보관함이라 로그인한 본인에게만 발급됩니다.
   const paths = [...new Set(mems.flatMap(m => (m.photos || []).map(p => `${uid}/${p.replace(/^v:/, '')}`)))];
-  photoUrl = {};
   for (let i = 0; i < paths.length; i += 100) {
     const { data } = await sb.storage.from('photos').createSignedUrls(paths.slice(i, i + 100), 3600);
     for (const r of data || []) if (r.signedUrl) photoUrl[r.path] = r.signedUrl;
   }
 }
 const pUrl = (p) => photoUrl[`${uid}/${p.replace(/^v:/, '')}`];
+const firstPhoto = (m) => { const p = (m.photos || [])[0]; return p ? pUrl(p) : null; };
 
-// ───────── 지도 ─────────
-let map = null, markers = [];
-const fog = $('fog'), fctx = fog.getContext('2d');
+// ───────── 안개 (지도마다 하나씩) ─────────
+class Fog {
+  constructor(map) {
+    this.map = map;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'fog';
+    map.getCanvas().after(this.canvas);           // 지도 그림 바로 위, 핀·버튼 아래
+    this.ctx = this.canvas.getContext('2d');
+    this.show = (day) => true;                    // 또렷하게 걷힐 날
+    this.dim = false;                             // 나머지 날을 흐리게 걷을지
+    this.glowDay = null;                          // 타임랩스: 지금 날의 길을 빛나게
+    this.off = false;
+    const redraw = () => this.draw();
+    map.on('move', redraw); map.on('resize', redraw); map.on('load', redraw);
+  }
+  draw() {
+    const map = this.map, ctx = this.ctx, fog = this.canvas;
+    const dpr = window.devicePixelRatio || 1, w = fog.clientWidth, h = fog.clientHeight;
+    if (fog.width !== Math.round(w * dpr) || fog.height !== Math.round(h * dpr)) { fog.width = Math.round(w * dpr); fog.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, w, h);
+    if (this.off || !w || !h) return;
+    ctx.globalAlpha = 0.93; ctx.fillStyle = FOGS[fogIdx][1]; ctx.fillRect(0, 0, w, h);
+    // 지도 좌표 → 화면 좌표 (지도가 돌지 않으므로 축마다 1차식)
+    const c = map.getCenter(), z = map.getZoom();
+    const dd = Math.min(20, 360 / 2 ** z * 0.25);
+    const la1 = Math.max(-80, Math.min(80, c.lat)), lo1 = c.lng, la2 = la1 > 0 ? la1 - dd : la1 + dd, lo2 = lo1 + dd;
+    const p1 = map.project([lo1, la1]), p2 = map.project([lo2, la2]);
+    const ax = (p2.x - p1.x) / (mercX(lo2) - mercX(lo1)), bx = p1.x - ax * mercX(lo1);
+    const ay = (p2.y - p1.y) / (mercY(la2) - mercY(la1)), by = p1.y - ay * mercY(la1);
+    const mpp = 40075016.686 * Math.cos(la1 * Math.PI / 180) / Math.abs(ax);   // 화면 1px당 미터
+    const stroke = Math.max(10 / mpp, 5), margin = stroke * 2;
+    const path = (pick) => {
+      ctx.beginPath();
+      for (const s of segs) {
+        if (!pick(s.day)) continue;
+        let px = ax * s.mx[0] + bx, py = ay * s.my[0] + by, pen = false;
+        if (s.mx.length === 1) { ctx.moveTo(px, py); ctx.lineTo(px + 0.01, py); continue; }
+        for (let k = 1; k < s.mx.length; k++) {
+          const x = ax * s.mx[k] + bx, y = ay * s.my[k] + by;
+          if (Math.abs(x - px) + Math.abs(y - py) < 1.5 && k < s.mx.length - 1) continue;
+          if (Math.max(x, px) < -margin || Math.min(x, px) > w + margin || Math.max(y, py) < -margin || Math.min(y, py) > h + margin) { pen = false; px = x; py = y; continue; }
+          if (!pen) { ctx.moveTo(px, py); pen = true; }
+          ctx.lineTo(x, y); px = x; py = y;
+        }
+      }
+    };
+    ctx.globalCompositeOperation = 'destination-out'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (this.dim) { path(d => !this.show(d)); ctx.globalAlpha = 0.35; ctx.lineWidth = stroke; ctx.stroke(); }
+    path(this.show);
+    for (const [a, wd] of [[0.3, 2.4], [0.55, 1.6], [1, 1]]) { ctx.globalAlpha = a; ctx.lineWidth = stroke * wd; ctx.stroke(); }
+    if (this.glowDay) {
+      ctx.globalCompositeOperation = 'source-over';
+      path(d => d === this.glowDay);
+      ctx.strokeStyle = '#F5B041'; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(stroke * 2, 10); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = 3; ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  }
+}
+
+function makeMap(container, opts = {}) {
+  const map = new maplibregl.Map({ container, style: STYLE, center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true }, ...opts });
+  map.touchZoomRotate.disableRotation();
+  try { map.keyboard.disableRotation(); } catch (e) {}
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+  return map;
+}
+
+function boundsOf(pick) {
+  let a = 90, b = -90, c = 180, d = -180, n = 0;
+  for (const s of segs) if (pick(s.day)) for (const [lon, lat] of [s.ll[0], s.ll[s.ll.length - 1]]) { a = Math.min(a, lat); b = Math.max(b, lat); c = Math.min(c, lon); d = Math.max(d, lon); n++; }
+  for (const m of mems) if (pick(dayOf(m.ts))) { a = Math.min(a, m.lat); b = Math.max(b, m.lat); c = Math.min(c, m.lon); d = Math.max(d, m.lon); n++; }
+  return n ? [[c, a], [d, b]] : null;
+}
+
+// ───────── 메인 지도 ─────────
+let map = null, fog = null, markers = [];
+const inView = (day) => view.mode === 'all' || (day >= view.from && day <= view.to);
 
 function initMap() {
-  map = new maplibregl.Map({
-    container: 'map', style: 'https://tiles.openfreemap.org/styles/liberty',
-    center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true },
-  });
-  map.touchZoomRotate.disableRotation();
-  // 안개를 지도 그림 바로 위, 추억 핀·버튼 아래에 둡니다.
-  map.getCanvas().after(fog);
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-  map.on('move', drawFog); map.on('resize', drawFog); map.on('load', () => { drawFog(); fitAll(); });
-  new ResizeObserver(drawFog).observe($('map'));
+  map = makeMap('map');
+  fog = new Fog(map);
+  fog.show = inView;
+  map.on('load', () => { fitAll(); });
+  map.on('mousedown', stopSpin); map.on('wheel', stopSpin); map.on('touchstart', stopSpin);
+}
+function fitAll() {
+  const b = boundsOf(tl ? (() => true) : inView);
+  if (map && b) map.fitBounds(b, { padding: { top: 60, bottom: tl ? 180 : 60, left: innerWidth > 760 ? 390 : 40, right: 60 }, maxZoom: 15.5, duration: 900 });
 }
 
-function inView(day) { return view.mode === 'all' || (day >= view.from && day <= view.to); }
-
-function drawFog() {
-  if (!map) return;
-  const dpr = window.devicePixelRatio || 1, w = fog.clientWidth, h = fog.clientHeight;
-  if (fog.width !== w * dpr || fog.height !== h * dpr) { fog.width = w * dpr; fog.height = h * dpr; }
-  fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  fctx.globalCompositeOperation = 'source-over';
-  fctx.clearRect(0, 0, w, h);
-  fctx.globalAlpha = 0.93;
-  fctx.fillStyle = FOGS[fogIdx][1];
-  fctx.fillRect(0, 0, w, h);
-  // 지도 좌표 → 화면 좌표 (지도가 돌지 않으므로 축마다 1차식)
-  const c = map.getCenter(), z = map.getZoom();
-  const dd = Math.min(20, 360 / 2 ** z * 0.25);
-  const la1 = Math.max(-80, Math.min(80, c.lat)), lo1 = c.lng, la2 = la1 > 0 ? la1 - dd : la1 + dd, lo2 = lo1 + dd;
-  const p1 = map.project([lo1, la1]), p2 = map.project([lo2, la2]);
-  const ax = (p2.x - p1.x) / (mercX(lo2) - mercX(lo1)), bx = p1.x - ax * mercX(lo1);
-  const ay = (p2.y - p1.y) / (mercY(la2) - mercY(la1)), by = p1.y - ay * mercY(la1);
-  const mpp = 40075016.686 * Math.cos(la1 * Math.PI / 180) / Math.abs(ax);   // 화면 1px당 미터
-  const stroke = Math.max(10 / mpp, 5);
-  const margin = stroke * 2;
-  fctx.globalCompositeOperation = 'destination-out';
-  fctx.lineCap = 'round'; fctx.lineJoin = 'round';
-  const pass = (wanted, alpha, width) => {
-    fctx.globalAlpha = alpha; fctx.lineWidth = width; fctx.beginPath();
-    for (const s of segs) {
-      if (inView(s.day) !== wanted) continue;
-      let px = ax * s.mx[0] + bx, py = ay * s.my[0] + by, pen = false;
-      if (s.mx.length === 1) { fctx.moveTo(px, py); fctx.lineTo(px + 0.01, py); continue; }
-      for (let k = 1; k < s.mx.length; k++) {
-        const x = ax * s.mx[k] + bx, y = ay * s.my[k] + by;
-        if (Math.abs(x - px) + Math.abs(y - py) < 1.5 && k < s.mx.length - 1) continue;
-        if (Math.max(x, px) < -margin || Math.min(x, px) > w + margin || Math.max(y, py) < -margin || Math.min(y, py) > h + margin) { pen = false; px = x; py = y; continue; }
-        if (!pen) { fctx.moveTo(px, py); pen = true; }
-        fctx.lineTo(x, y); px = x; py = y;
-      }
-    }
-    fctx.stroke();
-  };
-  if (view.mode !== 'all') pass(false, 0.35, stroke);          // 다른 기간은 흐리게
-  pass(true, 0.3, stroke * 2.4); pass(true, 0.55, stroke * 1.6); pass(true, 1, stroke);
-  fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+function memPopup(m) {
+  const u = firstPhoto(m);
+  return `<div class="pop"><div class="t">${esc(m.icon)} ${esc(m.title || '제목 없음')}</div><div class="d">${fmtDate(m.ts)}</div>` +
+    (u ? `<img src="${u}" alt="">` : '') + (m.body ? `<div class="b">${esc(m.body)}</div>` : '') +
+    `<button class="link" data-open="${m.id}">크게 보기 →</button></div>`;
 }
-
-function fitTo(list) {
-  if (!map || !list.length) return;
-  let a = 90, b = -90, c = 180, d = -180;
-  for (const [lat, lon] of list) { a = Math.min(a, lat); b = Math.max(b, lat); c = Math.min(c, lon); d = Math.max(d, lon); }
-  map.fitBounds([[c, a], [d, b]], { padding: { top: 60, bottom: 60, left: innerWidth > 760 ? 380 : 40, right: 60 }, maxZoom: 15.5, duration: 900 });
+function pinFor(m) {
+  const el = document.createElement('button');
+  const u = photoMode ? firstPhoto(m) : null;
+  if (u) { el.className = 'pin photo'; el.innerHTML = `<img src="${u}" alt="">`; }
+  else { el.className = 'pin' + (m.icon ? '' : ' plain'); el.textContent = m.icon || ''; }
+  el.setAttribute('aria-label', '추억: ' + (m.title || '제목 없음'));
+  return el;
 }
-function pointsInView() {
-  const pts = [];
-  for (const d of days) if (inView(d.day) && d.track) for (const part of d.track.split(' ')) { const p = decode(part); if (p.length) { pts.push(p[0]); pts.push(p[p.length - 1]); } }
-  for (const m of mems) if (inView(dayOf(m.ts))) pts.push([m.lat, m.lon]);
-  return pts;
-}
-function fitAll() { fitTo(pointsInView()); }
-function dayOf(ts) { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-
 function drawPins() {
   markers.forEach(m => m.remove()); markers = [];
+  const show = tl ? (d) => d <= tl.days[tl.i] : inView;
   for (const m of mems) {
-    if (!inView(dayOf(m.ts))) continue;
-    const el = document.createElement('button');
-    el.className = 'pin' + (m.icon ? '' : ' plain');
-    el.textContent = m.icon || '';
-    el.setAttribute('aria-label', '추억: ' + (m.title || '제목 없음'));
-    const first = (m.photos || [])[0];
-    const html = `<div class="pop"><div class="t">${esc(m.icon)} ${esc(m.title || '제목 없음')}</div><div class="d">${fmtDate(m.ts)}</div>` +
-      (first && pUrl(first) ? `<img src="${pUrl(first)}" alt="">` : '') +
-      (m.body ? `<div class="b">${esc(m.body)}</div>` : '') + `<button class="link" data-open="${m.id}">크게 보기 →</button></div>`;
-    const pop = new maplibregl.Popup({ offset: 20, maxWidth: '280px' }).setHTML(html);
-    markers.push(new maplibregl.Marker({ element: el }).setLngLat([m.lon, m.lat]).setPopup(pop).addTo(map));
+    if (!show(dayOf(m.ts))) continue;
+    const pop = new maplibregl.Popup({ offset: 20, maxWidth: '280px' }).setHTML(memPopup(m));
+    markers.push(new maplibregl.Marker({ element: pinFor(m) }).setLngLat([m.lon, m.lat]).setPopup(pop).addTo(map));
   }
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openMemory(+b.dataset.open); });
 
 function updatePanel() {
-  const ds = days.filter(d => inView(d.day));
-  const dist = ds.reduce((s, d) => s + d.dist_walk + d.dist_car + d.dist_plane, 0);
-  const area = ds.reduce((s, d) => s + d.area_km2, 0);
-  $('sArea').textContent = fmtArea(area);
+  const r = view.mode === 'all' ? sumRange('0000', '9999') : sumRange(view.from, view.to);
+  $('sArea').textContent = fmtArea(r.area);
   $('sAreaL').textContent = view.mode === 'all' ? '밝힌 영역' : '새로 밝힌 영역';
-  $('sDist').textContent = fmtDist(dist);
-  $('sMem').textContent = mems.filter(m => inView(dayOf(m.ts))).length + '개';
+  $('sDist').textContent = fmtDist(r.dist);
+  $('sMem').textContent = r.mem + '개';
 }
-
 function setView(mode, from, to, fit = true) {
+  if (tl) stopTimelapse();
+  if (globeOn && fit) setGlobe(false);
   view = { mode, from, to };
   $('mAll').setAttribute('aria-pressed', mode === 'all'); $('mRange').setAttribute('aria-pressed', mode !== 'all');
   $('rangeBox').classList.toggle('hidden', mode === 'all');
   if (from) $('from').value = from; if (to) $('to').value = to;
-  updatePanel(); drawPins(); drawFog(); if (fit) fitAll();
+  fog.dim = mode !== 'all';
+  updatePanel(); drawPins(); fog.draw(); if (fit) fitAll();
 }
 $('mAll').onclick = () => setView('all');
-$('mRange').onclick = () => {
-  const t = new Date(), to = dayOf(t.getTime()), from = dayOf(new Date(t.getFullYear(), t.getMonth(), 1).getTime());
-  setView('range', $('from').value || from, $('to').value || to);
-};
+$('mRange').onclick = () => { const t = dayOf(Date.now()); setView('range', $('from').value || t.slice(0, 8) + '01', $('to').value || t); };
 $('from').onchange = $('to').onchange = () => { let a = $('from').value, b = $('to').value; if (a && b) { if (a > b) [a, b] = [b, a]; setView('range', a, b); } };
 
 function buildFogPick() {
@@ -466,9 +600,225 @@ function buildFogPick() {
   FOGS.forEach(([name, col], i) => {
     const b = document.createElement('button');
     b.style.background = col; b.title = name; b.setAttribute('aria-label', name); b.setAttribute('aria-pressed', i === fogIdx);
-    b.onclick = () => { fogIdx = i; localStorage.setItem('mp_fog', i); box.querySelectorAll('button').forEach((x, k) => x.setAttribute('aria-pressed', k === i)); drawFog(); };
+    b.onclick = () => { fogIdx = i; localStorage.setItem('mp_fog', i); box.querySelectorAll('button').forEach((x, k) => x.setAttribute('aria-pressed', k === i)); allFogs().forEach(f => f.draw()); };
     box.appendChild(b);
   });
+}
+const allFogs = () => [fog, cmp?.A.fog, cmp?.B.fog].filter(Boolean);
+
+$('bPhoto').onclick = () => {
+  photoMode = !photoMode;
+  $('bPhoto').setAttribute('aria-pressed', photoMode); $('bPhoto').classList.toggle('on', photoMode);
+  drawPins();
+  if (photoMode && !mems.some(firstPhoto)) alert('사진이 있는 추억이 아직 없어요. 앱에서 사진을 넣은 추억이 동기화되면 지도 위에 사진이 떠요.');
+};
+
+// ───────── 타임랩스: 처음부터 오늘까지 안개가 날짜 순서로 걷힘 ─────────
+let tl = null;
+function startTimelapse() {
+  if (globeOn) setGlobe(false);
+  const list = [...new Set(days.map(d => d.day))].sort();
+  if (!list.length) return;
+  view = { mode: 'all', from: null, to: null };
+  $('mAll').setAttribute('aria-pressed', true); $('mRange').setAttribute('aria-pressed', false); $('rangeBox').classList.add('hidden');
+  tl = { days: list, i: 0, t: 0, playing: true, speed: 1, per: Math.max(0.06, Math.min(0.6, 40 / list.length)), last: 0 };
+  // 하루하루 쌓인 거리·넓이 (재생 중 숫자 표시용)
+  let cd = 0, ca = 0; const byDay = Object.fromEntries(days.map(d => [d.day, d]));
+  tl.cum = list.map(k => { const d = byDay[k]; cd += total(d); ca += d.area_km2; return [cd, ca]; });
+  $('tlRange').max = list.length - 1;
+  $('tlBar').classList.remove('hidden'); $('mapPanel').classList.add('hidden');
+  fog.dim = false;
+  fog.show = (d) => d <= tl.days[tl.i];
+  fitAll();
+  tlFrame(0); requestAnimationFrame(tlTick);
+}
+function tlFrame(i) {
+  tl.i = i;
+  const k = tl.days[i], [cd, ca] = tl.cum[i];
+  fog.glowDay = k;
+  $('tlDate').textContent = fmtDayLabel(k);
+  $('tlInfo').textContent = `${i + 1}일째 기록 · 누적 ${fmtDist(cd)} · 밝힌 영역 ${fmtArea(ca)}`;
+  $('tlRange').value = i;
+  fog.draw(); drawPins();
+}
+function tlTick(now) {
+  if (!tl) return;
+  if (tl.playing) {
+    if (tl.last) tl.t += (now - tl.last) / 1000 * tl.speed;
+    tl.last = now;
+    if (tl.t >= tl.per) { tl.t = 0; if (tl.i < tl.days.length - 1) tlFrame(tl.i + 1); else { tl.playing = false; $('tlPlay').textContent = '처음부터'; fog.glowDay = null; fog.draw(); } }
+  } else tl.last = 0;
+  requestAnimationFrame(tlTick);
+}
+function stopTimelapse() {
+  tl = null; fog.glowDay = null; fog.show = inView;
+  $('tlBar').classList.add('hidden'); $('mapPanel').classList.remove('hidden');
+  fog.draw(); drawPins();
+}
+$('bTl').onclick = startTimelapse;
+$('tlPlay').onclick = () => {
+  if (!tl) return;
+  if (!tl.playing && tl.i >= tl.days.length - 1) { tlFrame(0); tl.playing = true; }
+  else tl.playing = !tl.playing;
+  $('tlPlay').textContent = tl.playing ? '일시정지' : '재생';
+};
+$('tlSpeed').onclick = () => { if (!tl) return; tl.speed = tl.speed >= 4 ? 1 : tl.speed * 2; $('tlSpeed').textContent = tl.speed + '배'; };
+$('tlRange').oninput = () => { if (tl) { tl.playing = false; $('tlPlay').textContent = '재생'; tlFrame(+$('tlRange').value); } };
+$('tlClose').onclick = () => { stopTimelapse(); updatePanel(); };
+
+// ───────── 3D 지구본 ─────────
+let globeOn = false, spinning = false;
+function trackGeoJSON() {
+  return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: segs.filter(s => s.ll.length > 1).map(s => s.ll) } }] };
+}
+function setGlobe(on) {
+  if (!map.isStyleLoaded()) return;
+  globeOn = on;
+  $('bGlobe').setAttribute('aria-pressed', on); $('bGlobe').classList.toggle('on', on);
+  $('globeHint').classList.toggle('hidden', !on);
+  if (on) {
+    if (tl) stopTimelapse();
+    fog.off = true; fog.draw();
+    map.setProjection({ type: 'globe' });
+    if (!map.getSource('trk')) {
+      map.addSource('trk', { type: 'geojson', data: trackGeoJSON() });
+      map.addLayer({ id: 'trk-glow', type: 'line', source: 'trk', paint: { 'line-color': '#F5B041', 'line-width': 8, 'line-blur': 6, 'line-opacity': 0.55 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+      map.addLayer({ id: 'trk-core', type: 'line', source: 'trk', paint: { 'line-color': '#FFE2A8', 'line-width': 2.2 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+    } else {
+      map.setLayoutProperty('trk-glow', 'visibility', 'visible'); map.setLayoutProperty('trk-core', 'visibility', 'visible');
+    }
+    const b = boundsOf(() => true);
+    const center = b ? [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2] : [127, 36];
+    map.easeTo({ center, zoom: 1.6, duration: 2200 });
+    setTimeout(() => { if (globeOn) startSpin(); }, 2400);
+  } else {
+    stopSpin();
+    map.setProjection({ type: 'mercator' });
+    if (map.getLayer('trk-glow')) { map.setLayoutProperty('trk-glow', 'visibility', 'none'); map.setLayoutProperty('trk-core', 'visibility', 'none'); }
+    fog.off = false; fog.draw(); fitAll();
+  }
+}
+function startSpin() {
+  spinning = true;
+  const step = () => { if (!spinning || !globeOn) return; const c = map.getCenter(); if (map.getZoom() < 3) map.jumpTo({ center: [c.lng + 0.12, c.lat] }); requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function stopSpin() { spinning = false; }
+$('bGlobe').onclick = () => setGlobe(!globeOn);
+
+// ───────── 나란히 비교 ─────────
+let cmp = null;
+function initCompare() {
+  const side = (id, key) => { const m = makeMap(id); const f = new Fog(m); f.dim = true; return { map: m, fog: f, key }; };
+  cmp = { A: side('mapA', 'a'), B: side('mapB', 'b'), sync: false };
+  // 한쪽을 움직이면 다른 쪽도 같은 곳을 보여 줍니다.
+  for (const [me, other] of [[cmp.A, cmp.B], [cmp.B, cmp.A]]) {
+    me.map.on('move', (e) => { if (cmp.sync || !e.originalEvent) return; cmp.sync = true; other.map.jumpTo({ center: me.map.getCenter(), zoom: me.map.getZoom() }); cmp.sync = false; });
+  }
+  for (const s of [cmp.A, cmp.B]) for (const which of ['From', 'To']) $(s.key + which).onchange = () => applyCompare();
+  document.querySelectorAll('#cmpPreset button').forEach(b => b.onclick = () => preset(b.dataset.p));
+  cmp.A.map.on('load', () => preset('month'));
+}
+function preset(p) {
+  const t = new Date(), y = t.getFullYear(), mo = t.getMonth();
+  const D = (a, b, c) => dayOf(new Date(a, b, c).getTime());
+  let a, b;
+  if (p === 'year') { a = [D(y, 0, 1), D(y, 11, 31)]; b = [D(y - 1, 0, 1), D(y - 1, 11, 31)]; }
+  else if (p === 'week') { const wd = (t.getDay() + 6) % 7; a = [D(y, mo, t.getDate() - wd), D(y, mo, t.getDate() - wd + 6)]; b = [D(y, mo, t.getDate() - wd - 7), D(y, mo, t.getDate() - wd - 1)]; }
+  else { a = [D(y, mo, 1), D(y, mo + 1, 0)]; b = [D(y, mo - 1, 1), D(y, mo, 0)]; }
+  $('aFrom').value = a[0]; $('aTo').value = a[1]; $('bFrom').value = b[0]; $('bTo').value = b[1];
+  document.querySelectorAll('#cmpPreset button').forEach(x => x.classList.toggle('on', x.dataset.p === p));
+  applyCompare(true);
+}
+function applyCompare(fit) {
+  if (!cmp) return;
+  let all = [];
+  for (const s of [cmp.A, cmp.B]) {
+    let f = $(s.key + 'From').value, t = $(s.key + 'To').value; if (f > t) [f, t] = [t, f];
+    s.fog.show = (d) => d >= f && d <= t; s.fog.draw();
+    const r = sumRange(f, t);
+    $(s.key + 'Stats').innerHTML = `<div class="stat accent"><b>${fmtArea(r.area)}</b><span>새로 밝힘</span></div><div class="stat"><b>${fmtDist(r.dist)}</b><span>이동 · ${r.n}일</span></div><div class="stat"><b>${r.mem}개</b><span>추억</span></div>`;
+    (s.pins || []).forEach(m => m.remove());
+    s.pins = mems.filter(m => s.fog.show(dayOf(m.ts))).map(m => new maplibregl.Marker({ element: pinFor(m) }).setLngLat([m.lon, m.lat]).setPopup(new maplibregl.Popup({ offset: 20 }).setHTML(memPopup(m))).addTo(s.map));
+    all.push(s.fog.show);
+  }
+  if (fit) {
+    const b = boundsOf((d) => all.some(f => f(d))) || boundsOf(() => true);
+    if (b) { cmp.sync = true; for (const s of [cmp.A, cmp.B]) s.map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 0 }); cmp.sync = false; }
+  }
+}
+
+// ───────── 한눈에 (대시보드) ─────────
+function renderHome() {
+  const today = dayOf(Date.now());
+  const t = new Date(), y = t.getFullYear(), mo = t.getMonth();
+  const mStart = dayOf(new Date(y, mo, 1).getTime()), pmStart = dayOf(new Date(y, mo - 1, 1).getTime()), pmEnd = dayOf(new Date(y, mo, 0).getTime());
+  const cur = sumRange(mStart, today), prev = sumRange(pmStart, pmEnd), all = sumRange('0000', '9999');
+  const S = summary || {};
+  const dplus = S.startTs ? Math.floor((Date.now() - S.startTs) / 864e5) + 1 : days.length;
+  const diff = (a, b) => b > 0 ? (a >= b ? '▲ ' : '▼ ') + Math.round(Math.abs(a - b) / b * 100) + '% (지난달 대비)' : '';
+  let h = `<h2>한눈에 보기</h2><div class="tiles">
+    <div class="tile"><span>함께한 날</span><b class="a">D+${dplus}</b><small>기록한 날 ${days.length}일</small></div>
+    <div class="tile"><span>지구에서 밝힌 곳</span><b class="a">${fmtPct(S.earthPct ?? all.area / 510072000 * 100)}</b><small>${fmtArea(S.area ?? all.area)}</small></div>
+    <div class="tile"><span>이번 달 이동</span><b>${fmtDist(cur.dist)}</b><small>${diff(cur.dist, prev.dist)}</small></div>
+    <div class="tile"><span>이번 달 새로 밝힘</span><b>${fmtArea(cur.area)}</b><small>${diff(cur.area, prev.area)}</small></div>
+    <div class="tile"><span>남긴 추억</span><b>${mems.length}개</b><small>이번 달 ${cur.mem}개</small></div>
+  </div>`;
+
+  // 1년 활동 달력 (잔디)
+  const byDay = Object.fromEntries(days.map(d => [d.day, d]));
+  const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 364); start.setDate(start.getDate() - start.getDay());
+  const vals = days.map(total).filter(v => v > 0).sort((a, b) => a - b);
+  const q = (p) => vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * p))] : 1;
+  const cuts = [q(0.25), q(0.5), q(0.75)];
+  const shade = (v) => v <= 0 ? null : v <= cuts[0] ? 0.28 : v <= cuts[1] ? 0.5 : v <= cuts[2] ? 0.75 : 1;
+  let cells = '', monthsRow = '', lastM = -1, col = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 0) { const m = d.getMonth(); monthsRow += `<span>${m !== lastM ? (m + 1) + '월' : ''}</span>`; lastM = m; col++; }
+    const k = dayOf(d.getTime()), r = byDay[k], v = r ? total(r) : 0, s = shade(v);
+    cells += `<i ${s ? `style="background:rgba(245,176,65,${s})"` : ''} data-day="${k}" data-tip="${fmtDayLabel(k)}<br>${r ? '이동 ' + fmtDist(v) + (r.steps ? ' · 걸음 ' + nf.format(r.steps) : '') : '기록 없음'}"></i>`;
+  }
+  const legend = `<div class="legend">적음 <i style="background:var(--grid)"></i>${[0.28, 0.5, 0.75, 1].map(a => `<i style="background:rgba(245,176,65,${a})"></i>`).join('')} 많음</div>`;
+
+  // 요일×시간대
+  let heat = '';
+  if (S.week) {
+    const mx = Math.max(1, ...S.week.flat());
+    heat = `<div class="heat"><span></span>${Array.from({ length: 24 }, (_, hh) => `<span class="h">${hh % 6 === 0 ? hh : ''}</span>`).join('')}`;
+    for (const w of [1, 2, 3, 4, 5, 6, 0]) {
+      heat += `<span>${DOW[w]}</span>` + S.week[w].map((v, hh) => `<i style="${v > 0 ? `background:rgba(127,182,242,${(0.15 + 0.85 * Math.sqrt(v / mx)).toFixed(2)})` : ''}" data-tip="${DOW[w]}요일 ${hh}시~${hh + 1}시<br>누적 ${fmtDist(v)}"></i>`).join('');
+    }
+    heat += `</div>`;
+    let best = [0, 0, 0]; S.week.forEach((r, w) => r.forEach((v, hh) => { if (v > best[2]) best = [w, hh, v]; }));
+    heat += `<p class="muted">가장 많이 움직이는 때: <b style="color:var(--txt)">${DOW[best[0]]}요일 ${best[1]}시대</b></p>`;
+  } else heat = `<p class="muted">앱을 최신 버전으로 업데이트하고 동기화하면 나타나요.</p>`;
+
+  // 최근 12개월 이동
+  const ms = [];
+  for (let i = 11; i >= 0; i--) { const a = new Date(y, mo - i, 1), b = new Date(y, mo - i + 1, 0); const r = sumRange(dayOf(a.getTime()), dayOf(b.getTime())); ms.push([a.getMonth() + 1, r.dist, a.getFullYear()]); }
+  const mmax = Math.max(1, ...ms.map(m => m[1]));
+  const monthsChart = `<div class="months">${ms.map(([m, v, yy]) => `<div class="m" data-tip="${yy}년 ${m}월<br>${fmtDist(v)}"><b>${v > 0 ? Math.round(v / 1000) : ''}</b><i style="height:${(v / mmax * 120).toFixed(1)}px"></i><span>${m}월</span></div>`).join('')}</div>`;
+
+  h += `<div class="dash2">
+    <div class="card"><div class="row"><h3>1년 활동 달력</h3>${legend}</div><div><div class="calMonths">${monthsRow}</div><div class="cal" id="cal">${cells}</div></div><span class="muted">칸을 누르면 그날 다닌 길을 지도에서 보여줘요.</span></div>
+    <div class="card"><h3>언제 많이 움직이나요</h3>${heat}</div>
+  </div>
+  <div class="dash2">
+    <div class="card"><h3>최근 12개월 이동 거리 <span class="muted">(km)</span></h3>${monthsChart}</div>
+    <div class="card"><h3>이번 달 vs 지난달</h3>
+      <div class="row"><span>이동 거리</span><span class="v">${fmtDist(cur.dist)} / ${fmtDist(prev.dist)}</span></div>${bar(prev.dist ? cur.dist / Math.max(cur.dist, prev.dist) : 1)}
+      <div class="row"><span>새로 밝힌 영역</span><span class="v">${fmtArea(cur.area)} / ${fmtArea(prev.area)}</span></div>${bar(prev.area ? cur.area / Math.max(cur.area, prev.area) : 1, 'sky')}
+      <div class="row"><span>기록한 날</span><span class="v">${cur.n}일 / ${prev.n}일</span></div>
+      <div class="row"><span>추억</span><span class="v">${cur.mem}개 / ${prev.mem}개</span></div>
+      <button class="btn" id="goCompare">지도로 나란히 비교하기 →</button></div>
+  </div>`;
+
+  // 최근 추억 띠
+  const recent = [...mems].sort((a, b) => b.ts - a.ts).slice(0, 14);
+  if (recent.length) h += `<section><h2 style="font-size:20px">최근 추억</h2><div class="strip">${recent.map(memCard).join('')}</div></section>`;
+  $('homeBox').innerHTML = h;
+  $('cal').addEventListener('click', (e) => { const i = e.target.closest('i[data-day]'); if (i && byDay[i.dataset.day]) { go('map'); setView('range', i.dataset.day, i.dataset.day); } });
+  $('goCompare').onclick = () => go('compare');
 }
 
 // ───────── 통계 ─────────
@@ -477,12 +827,11 @@ function renderStats() {
   for (const d of days) { dist[0] += d.dist_walk; dist[1] += d.dist_car; dist[2] += d.dist_plane; area += d.area_km2; steps += d.steps || 0; }
   const tot = dist[0] + dist[1] + dist[2], km = tot / 1000, rounds = km / 40075;
   const S = summary || {};
-  const earthPct = S.earthPct ?? area / 510072000 * 100;
   const level = Math.floor(Math.sqrt(S.area ?? area)) + 1;
   let h = `<h2>나의 기록</h2>`;
   if (S.updated) h += `<p class="muted" style="margin-top:-10px">폰에서 마지막으로 올린 시각: ${new Date(S.updated).toLocaleString('ko-KR')}</p>`;
   h += `<div class="grid">
-    <div class="card"><span class="muted">지구에서 밝힌 곳</span><div class="big">${fmtPct(earthPct)}</div><span>${fmtArea(S.area ?? area)} · 탐험 레벨 ${level}</span></div>
+    <div class="card"><span class="muted">지구에서 밝힌 곳</span><div class="big">${fmtPct(S.earthPct ?? area / 510072000 * 100)}</div><span>${fmtArea(S.area ?? area)} · 탐험 레벨 ${level}</span></div>
     <div class="card"><span class="muted">지나온 길</span><div class="big">${fmtDist(tot)}</div><span>지구 ${rounds < 0.01 ? rounds.toFixed(5) : rounds.toFixed(2)}바퀴 · 달까지 ${fmtPct(km / 384400 * 100)}</span>${bar(rounds - Math.floor(rounds), 'sky')}</div>
     <div class="card"><span class="muted">이동 수단</span>
       <div class="row"><span>🚶 걷기</span><span class="v">${fmtDist(dist[0])}</span></div>
@@ -507,7 +856,7 @@ function renderStats() {
   }
   if (S.places?.length) {
     h += `<section><h2>자주 가는 곳</h2><div class="grid">`;
-    S.places.forEach((p, i) => { h += `<div class="card"><div class="row"><h3>${['🥇', '🥈', '🥉'][i] ?? i + 1} ${esc(p.name || (p.near ? p.near + ' 근처' : '이름 없는 곳'))}</h3></div><span class="muted">${p.visits}번 머묾 · 모두 ${hours(p.ms)}</span></div>`; });
+    S.places.forEach((p, i) => { h += `<div class="card"><h3>${['🥇', '🥈', '🥉'][i] ?? i + 1} ${esc(p.name || (p.near ? p.near + ' 근처' : '이름 없는 곳'))}</h3><span class="muted">${p.visits}번 머묾 · 모두 ${hours(p.ms)}</span></div>`; });
     h += `</div></section>`;
   }
   if (S.badges?.length) {
@@ -522,6 +871,15 @@ function renderStats() {
 
 // ───────── 앨범 ─────────
 let albumFilter = null;
+const TINTS = ['#2B3A55', '#3A2F4F', '#24443E', '#4A3526', '#3B3F2A', '#45283A'];
+function memCard(m) {
+  const u = firstPhoto(m), d = new Date(m.ts);
+  return `<button class="mcard" data-open="${m.id}">` +
+    (u ? `<img src="${u}" alt="" loading="lazy">` : `<div class="ph" style="background:${TINTS[Math.abs(m.id) % TINTS.length]}">${m.icon || '📍'}</div>`) +
+    `<div class="shade"></div>` + (u && m.icon ? `<div class="ic">${m.icon}</div>` : '') +
+    ((m.photos || []).length > 1 ? `<div class="cnt">${m.photos.length}장</div>` : '') +
+    `<div class="cap"><b>${esc(m.title || '제목 없음')}</b><span>${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})</span></div></button>`;
+}
 function renderAlbum() {
   const icons = [...new Set(mems.map(m => m.icon).filter(Boolean))];
   $('chips').innerHTML = [null, ...icons].map(g => `<button data-g="${g ?? ''}" aria-pressed="${albumFilter === g}">${g == null ? '전체' : g + ' ' + (ICON_NAMES[g] ?? '')}</button>`).join('');
@@ -530,20 +888,8 @@ function renderAlbum() {
   if (!list.length) { $('albumBox').innerHTML = `<p class="muted">아직 올라온 추억이 없어요.</p>`; return; }
   const groups = new Map();
   for (const m of list) { const d = new Date(m.ts); const k = `${d.getFullYear()}년 ${d.getMonth() + 1}월`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); }
-  const tints = ['#2B3A55', '#3A2F4F', '#24443E', '#4A3526', '#3B3F2A', '#45283A'];
   let h = '';
-  for (const [k, arr] of groups) {
-    h += `<div class="month"><h3>${k}</h3><span class="muted">${arr.length}개</span></div><div class="album">`;
-    for (const m of arr) {
-      const p = (m.photos || [])[0], u = p && pUrl(p), d = new Date(m.ts);
-      h += `<button class="mcard" data-open="${m.id}">` +
-        (u ? `<img src="${u}" alt="" loading="lazy">` : `<div class="ph" style="background:${tints[Math.abs(m.id) % tints.length]}">${m.icon || '📍'}</div>`) +
-        `<div class="shade"></div>` + (u && m.icon ? `<div class="ic">${m.icon}</div>` : '') +
-        ((m.photos || []).length > 1 ? `<div class="cnt">${m.photos.length}장</div>` : '') +
-        `<div class="cap"><b>${esc(m.title || '제목 없음')}</b><span>${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})</span></div></button>`;
-    }
-    h += `</div>`;
-  }
+  for (const [k, arr] of groups) h += `<div class="month"><h3>${k}</h3><span class="muted">${arr.length}개</span></div><div class="album">${arr.map(memCard).join('')}</div>`;
   $('albumBox').innerHTML = h;
 }
 
@@ -563,7 +909,7 @@ $('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').
 // ───────── 하루 기록 ─────────
 function renderDays() {
   const rows = [...days].sort((a, b) => b.day.localeCompare(a.day));
-  $('dayRows').innerHTML = rows.map(d => `<tr data-day="${d.day}"><td><button>${fmtDayLabel(d.day)}</button></td><td>${fmtDist(d.dist_walk + d.dist_car + d.dist_plane)}</td><td>${fmtDist(d.dist_walk)}</td><td>${fmtDist(d.dist_car)}</td><td>${fmtArea(d.area_km2)}</td><td>${d.steps ? nf.format(d.steps) : '-'}</td></tr>`).join('') ||
+  $('dayRows').innerHTML = rows.map(d => `<tr data-day="${d.day}"><td><button>${fmtDayLabel(d.day)}</button></td><td>${fmtDist(total(d))}</td><td>${fmtDist(d.dist_walk)}</td><td>${fmtDist(d.dist_car)}</td><td>${fmtArea(d.area_km2)}</td><td>${d.steps ? nf.format(d.steps) : '-'}</td></tr>`).join('') ||
     `<tr><td colspan="6" class="muted">아직 올라온 기록이 없어요.</td></tr>`;
   $('dayRows').querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = () => { go('map'); setView('range', tr.dataset.day, tr.dataset.day); });
 }
@@ -572,8 +918,10 @@ function renderDays() {
 function go(page) {
   document.querySelectorAll('nav button[data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('hidden', p.id !== 'page-' + page));
+  hideTip();
   // 숨겨져 있던 지도는 크기가 0이 되므로, 다시 보일 때 바로 크기를 맞춥니다.
-  if (page === 'map' && map) { map.resize(); drawFog(); }
+  if (page === 'map') { if (!map) { initMap(); setView('all', null, null, false); } else { map.resize(); fog.draw(); } }
+  if (page === 'compare') { if (!cmp) initCompare(); else { cmp.A.map.resize(); cmp.B.map.resize(); applyCompare(); } }
 }
 document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
 
@@ -583,18 +931,13 @@ async function start(session) {
   $('who').textContent = session.user.email;
   $('login').classList.add('hidden');
   $('loading').classList.remove('hidden');
-  try {
-    await loadData();
-  } catch (e) {
-    $('loading').textContent = '기록을 불러오지 못했어요: ' + (e.message || e);
-    return;
-  }
+  try { await loadData(); } catch (e) { $('loading').textContent = '기록을 불러오지 못했어요: ' + (e.message || e); return; }
   $('loading').classList.add('hidden');
   $('app').classList.remove('hidden');
-  if (summary?.startTs) { const n = Math.floor((Date.now() - summary.startTs) / 86400000) + 1; $('dplus').textContent = `함께한 지 D+${n}`; }
-  if (!map) { initMap(); buildFogPick(); }
-  setView('all', null, null, false);
-  renderStats(); renderAlbum(); renderDays();
+  if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
+  buildFogPick();
+  renderHome(); renderStats(); renderAlbum(); renderDays();
+  go('home');
 }
 
 $('loginForm').onsubmit = async (e) => {
