@@ -352,6 +352,8 @@ function initMap() {
     center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true },
   });
   map.touchZoomRotate.disableRotation();
+  // 안개를 지도 그림 바로 위, 추억 핀·버튼 아래에 둡니다.
+  map.getCanvasContainer().after(fog);
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
   map.on('move', drawFog); map.on('resize', drawFog); map.on('load', () => { drawFog(); fitAll(); });
   new ResizeObserver(drawFog).observe($('map'));
