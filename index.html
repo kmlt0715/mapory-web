@@ -129,11 +129,10 @@
   .tile b.a { color: var(--amber); }
   .tile small { display: block; font-size: 12px; color: var(--sub); margin-top: 4px; }
   .dash2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-top: 14px; }
-  .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
-  .cal i { width: 13px; height: 13px; border-radius: 3px; background: var(--grid); display: block; cursor: pointer; }
-  .cal i.empty { background: transparent; cursor: default; }
-  .calMonths { display: grid; grid-auto-flow: column; gap: 3px; font-size: 11px; color: var(--sub); height: 14px; }
-  .calMonths span { width: 13px; white-space: nowrap; overflow: visible; }
+  .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, auto); grid-auto-columns: minmax(0, 1fr); gap: 3px; }
+  .cal i { aspect-ratio: 1; border-radius: 3px; background: var(--grid); display: block; cursor: pointer; }
+  .calMonths { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; font-size: 11px; color: var(--sub); height: 16px; }
+  .calMonths span { white-space: nowrap; overflow: visible; }
   .legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--sub); }
   .legend i { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
   .heat { display: grid; grid-template-columns: 28px repeat(24, 1fr); gap: 2px; font-size: 10px; color: var(--sub); align-items: center; }
