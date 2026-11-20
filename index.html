@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mapory</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+<style>
+  :root {
+    --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758;
+    --amber: #F5B041; --amber-dark: #3A2C10; --amber-text: #FFD27A; --on-amber: #1A1408;
+    --txt: #F3EFE6; --sub: #C9D2DD; --green: #5FD3A2; --sky: #7FB6F2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt);
+    font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  button { font-family: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  .hidden { display: none !important; }
+
+  /* 로그인 */
+  #login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+  .login-card { width: 100%; max-width: 380px; background: var(--panel); border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px; }
+  .login-card h1 { margin: 0; font-size: 30px; color: var(--amber); }
+  .login-card p { margin: 0 0 6px; color: var(--sub); font-size: 14px; line-height: 1.6; }
+  label { font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px; }
+  input[type=email], input[type=password], input[type=date] {
+    height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 15px; font-family: inherit; }
+  input[type=date] { height: 40px; color-scheme: dark; }
+  .btn { height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; padding: 0 16px; }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
+  .err { color: #FF9C8A; font-size: 13px; min-height: 18px; }
+
+  /* 앱 틀 */
+  #app { height: 100%; display: grid; grid-template-columns: 220px 1fr; }
+  nav { background: var(--panel); display: flex; flex-direction: column; padding: 20px 12px; gap: 4px; }
+  nav .brand { font-size: 22px; font-weight: 800; color: var(--amber); padding: 4px 12px 18px; }
+  nav .brand small { display: block; font-size: 12px; color: var(--sub); font-weight: 500; margin-top: 4px; }
+  nav button { text-align: left; background: transparent; border: 0; color: var(--sub); font-size: 15px; padding: 12px; border-radius: 12px; min-height: 44px; }
+  nav button[aria-current=page] { background: var(--amber-dark); color: var(--amber-text); font-weight: 700; }
+  nav .spacer { flex: 1; }
+  nav .who { font-size: 12px; color: var(--sub); padding: 0 12px 8px; word-break: break-all; }
+  main { position: relative; overflow: hidden; }
+  .page { position: absolute; inset: 0; overflow: auto; }
+  .scroll { max-width: 1100px; margin: 0 auto; padding: 28px 28px 60px; }
+  h2 { margin: 0 0 18px; font-size: 26px; }
+  h3 { margin: 0; font-size: 16px; }
+
+  /* 지도 */
+  #map { position: absolute; inset: 0; }
+  #fog { position: absolute; inset: 0; pointer-events: none; }
+  .float { position: absolute; z-index: 2; background: rgba(20,27,36,.95); border-radius: 18px; padding: 14px; }
+  #mapPanel { top: 16px; left: 16px; width: 330px; display: flex; flex-direction: column; gap: 12px; }
+  .seg { display: flex; gap: 6px; background: var(--field); border-radius: 12px; padding: 4px; }
+  .seg button { flex: 1; height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--sub); font-size: 14px; }
+  .seg button[aria-pressed=true] { background: var(--amber); color: var(--on-amber); font-weight: 700; }
+  .range { display: flex; gap: 8px; align-items: center; }
+  .range input { flex: 1; min-width: 0; }
+  .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
+  .stat b { display: block; font-size: 17px; }
+  .stat span { font-size: 11px; color: var(--sub); }
+  .stat.accent b { color: var(--amber); }
+  #fogPick { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--sub); }
+  #fogPick button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  #fogPick button[aria-pressed=true] { border-color: var(--amber); }
+  .pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 2.5px solid var(--amber); display: grid; place-items: center; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: pointer; }
+  .pin.plain { width: 22px; height: 22px; background: var(--amber); border-color: var(--panel); }
+  .maplibregl-popup-content { background: var(--panel); color: var(--txt); border-radius: 14px; padding: 12px; font-family: inherit; max-width: 260px; }
+  .maplibregl-popup-tip { border-top-color: var(--panel) !important; border-bottom-color: var(--panel) !important; }
+  .maplibregl-popup-close-button { color: var(--sub); font-size: 18px; width: 32px; height: 32px; }
+  .pop img { width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
+  .pop .t { font-weight: 700; font-size: 15px; padding-right: 22px; }
+  .pop .d { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .pop .b { font-size: 13px; margin-top: 6px; line-height: 1.5; white-space: pre-wrap; max-height: 120px; overflow: auto; }
+  .pop .link { margin-top: 8px; background: none; border: 0; color: var(--amber-text); padding: 4px 0; font-size: 13px; }
+
+  /* 카드 */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .big { font-size: 32px; font-weight: 800; color: var(--amber); }
+  .muted { color: var(--sub); font-size: 13px; }
+  .bar { height: 8px; border-radius: 4px; background: #2A3544; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--amber); border-radius: 4px; min-width: 2px; }
+  .bar.sky i { background: var(--sky); } .bar.green i { background: var(--green); }
+  .row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+  .row .v { color: var(--sub); white-space: nowrap; }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+  .badge { background: var(--panel); border-radius: 18px; padding: 14px 8px; text-align: center; border: 1px solid transparent; }
+  .badge.got { border-color: var(--amber); }
+  .badge .e { font-size: 30px; }
+  .badge:not(.got) .e { opacity: .3; }
+  .badge b { display: block; font-size: 13px; margin-top: 4px; }
+  .badge.got b { color: var(--amber-text); }
+  .badge span { font-size: 11px; color: var(--sub); }
+  section + section { margin-top: 28px; }
+
+  /* 앨범 */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chips button { height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--panel); color: var(--sub); padding: 0 14px; font-size: 13px; }
+  .chips button[aria-pressed=true] { border-color: var(--amber); background: var(--amber-dark); color: var(--amber-text); font-weight: 700; }
+  .month { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 0 10px; }
+  .month h3 { font-size: 18px; }
+  .album { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .mcard { position: relative; aspect-ratio: .86; border-radius: 18px; overflow: hidden; background: var(--panel); border: 0; padding: 0; color: #fff; text-align: left; }
+  .mcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mcard .ph { width: 100%; height: 100%; display: grid; place-items: center; font-size: 46px; padding-bottom: 40px; }
+  .mcard .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 110px; background: linear-gradient(transparent, rgba(0,0,0,.88)); }
+  .mcard .cap { position: absolute; left: 12px; right: 12px; bottom: 12px; }
+  .mcard .cap b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mcard .cap span { font-size: 12px; color: #D8DEE6; }
+  .mcard .ic { position: absolute; top: 8px; left: 8px; width: 34px; height: 34px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-size: 18px; }
+  .mcard .cnt { position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700; background: rgba(0,0,0,.6); border-radius: 10px; padding: 3px 8px; }
+
+  /* 하루 기록 표 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: right; padding: 12px 10px; border-bottom: 1px solid #2A3544; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--sub); font-weight: 500; font-size: 12px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--panel); }
+  td button { background: none; border: 0; color: var(--amber-text); font-size: 13px; padding: 6px 0; }
+
+  /* 크게 보기 */
+  dialog { border: 0; border-radius: 22px; background: var(--panel); color: var(--txt); padding: 0; width: min(920px, 94vw); max-height: 92vh; }
+  dialog::backdrop { background: rgba(0,0,0,.7); }
+  .dlg { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+  .dlg .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .dlg h3 { font-size: 22px; }
+  .dlg .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .dlg .photos img { width: 100%; border-radius: 12px; display: block; }
+  .dlg .body { white-space: pre-wrap; line-height: 1.7; }
+  .x { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--field); color: var(--txt); font-size: 18px; flex: none; }
+
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50; color: var(--sub); font-size: 15px; }
+
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    nav { order: 2; flex-direction: row; padding: 6px; gap: 2px; justify-content: space-around; }
+    nav .brand, nav .spacer, nav .who, nav #logout { display: none; }
+    nav button { text-align: center; font-size: 13px; padding: 10px 6px; flex: 1; }
+    #mapPanel { left: 10px; right: 10px; top: 10px; width: auto; }
+    .scroll { padding: 18px 14px 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">불러오는 중…</div>
+
+<!-- 로그인 -->
+<div id="login" class="hidden">
+  <form class="login-card" id="loginForm">
+    <h1>Mapory</h1>
+    <p>폰에서 쓰는 Mapory 계정으로 로그인하세요. 나만 볼 수 있는 기록이에요.</p>
+    <label>이메일<input type="email" id="email" autocomplete="username" required></label>
+    <label>비밀번호<input type="password" id="pw" autocomplete="current-password" required></label>
+    <div class="err" id="loginErr" role="alert"></div>
+    <button class="btn primary" type="submit" id="loginBtn">로그인</button>
+  </form>
+</div>
+
+<!-- 본 화면 -->
+<div id="app" class="hidden">
+  <nav aria-label="메뉴">
+    <div class="brand">Mapory<small id="dplus"></small></div>
+    <button data-page="map" aria-current="page">🗺️ 지도</button>
+    <button data-page="stats">📊 통계</button>
+    <button data-page="album">📔 추억 앨범</button>
+    <button data-page="days">📅 하루 기록</button>
+    <div class="spacer"></div>
+    <div class="who" id="who"></div>
+    <button id="logout">로그아웃</button>
+  </nav>
+  <main>
+    <!-- 지도 -->
+    <div class="page" id="page-map">
+      <div id="map"></div>
+      <canvas id="fog"></canvas>
+      <div class="float" id="mapPanel">
+        <div class="seg" role="group" aria-label="보기">
+          <button id="mAll" aria-pressed="true">누적</button>
+          <button id="mRange" aria-pressed="false">기간</button>
+        </div>
+        <div class="range hidden" id="rangeBox">
+          <input type="date" id="from" aria-label="시작일"> <span class="muted">–</span> <input type="date" id="to" aria-label="종료일">
+        </div>
+        <div class="stats3">
+          <div class="stat accent"><b id="sArea">-</b><span id="sAreaL">밝힌 영역</span></div>
+          <div class="stat"><b id="sDist">-</b><span>이동 거리</span></div>
+          <div class="stat"><b id="sMem">-</b><span>추억</span></div>
+        </div>
+        <div id="fogPick" aria-label="안개 색">안개</div>
+      </div>
+    </div>
+
+    <!-- 통계 -->
+    <div class="page hidden" id="page-stats"><div class="scroll" id="statsBox"></div></div>
+
+    <!-- 앨범 -->
+    <div class="page hidden" id="page-album"><div class="scroll">
+      <h2>추억 앨범</h2>
+      <div class="chips" id="chips"></div>
+      <div id="albumBox"></div>
+    </div></div>
+
+    <!-- 하루 기록 -->
+    <div class="page hidden" id="page-days"><div class="scroll">
+      <h2>하루 기록</h2>
+      <p class="muted">날짜를 누르면 지도에서 그날 다닌 길을 보여줘요.</p>
+      <table>
+        <thead><tr><th>날짜</th><th>이동</th><th>걷기</th><th>차</th><th>새로 밝힘</th><th>걸음</th></tr></thead>
+        <tbody id="dayRows"></tbody>
+      </table>
+    </div></div>
+  </main>
+</div>
+
+<dialog id="dlg"><div class="dlg" id="dlgBox"></div></dialog>
+
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// 공개되어도 괜찮은 값입니다. 데이터는 로그인한 본인만 읽을 수 있게 서버에서 잠겨 있습니다.
+const SB_URL = 'https://arqvovxynxwxemxvpewl.supabase.co';
+const SB_KEY = 'sb_publishable_r2uvYJFKDVaCtmTgYoyojg_Vh4ithCC';
+const sb = createClient(SB_URL, SB_KEY);
+
+const $ = (id) => document.getElementById(id);
+const FOGS = [['흰 안개', '#F4F6F8'], ['밤 안개', '#25303E'], ['새벽 보라', '#9A91D4'], ['노을', '#F2B8A0'], ['숲', '#A9C9B0'], ['바다', '#9CC4E0']];
+const ICON_NAMES = { '✈️':'여행','🍽️':'음식','☕':'카페','🍺':'술자리','🍰':'디저트','🛍️':'쇼핑','🏠':'집','💼':'일','📚':'공부','🏃':'운동','⛰️':'산','🌊':'바다','🏕️':'캠핑','🌸':'산책','🚗':'드라이브','🎬':'영화','🎵':'공연','🎮':'놀이','📷':'사진','❤️':'데이트','👪':'가족','👫':'친구','🐶':'반려동물','🎂':'기념일','🏨':'숙소','⛳':'골프','🏥':'병원','⛪':'명소','⭐':'특별' };
+
+let uid = null, days = [], mems = [], summary = null;
+let segs = [];          // 길 구간: { day, mx: Float64Array, my: Float64Array }
+let photoUrl = {};      // 사진 경로 → 임시 주소
+let view = { mode: 'all', from: null, to: null };
+let fogIdx = +(localStorage.getItem('mp_fog') ?? 0) || 0;
+
+// ───────── 숫자 표시 ─────────
+const nf = new Intl.NumberFormat('ko-KR');
+function fmtDist(m) { return m < 1000 ? Math.round(m) + ' m' : m < 100000 ? (m / 1000).toFixed(1) + ' km' : nf.format(Math.round(m / 1000)) + ' km'; }
+function fmtArea(k) { return k < 0.01 ? nf.format(Math.round(k * 1e6)) + ' m²' : k < 100 ? k.toFixed(2) + ' km²' : nf.format(Math.round(k)) + ' km²'; }
+function fmtPct(p) { if (!(p > 0)) return '0%'; const d = Math.min(12, Math.max(1, Math.ceil(-Math.log10(p)) + 1)); return p.toFixed(d) + '%'; }
+function fmtDate(ts) { const d = new Date(ts); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; }
+function fmtDayLabel(s) { const d = new Date(s + 'T00:00:00'); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} (${'일월화수목금토'[d.getDay()]})`; }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function hours(ms) { const m = Math.round(ms / 60000); return m < 60 ? m + '분' : Math.floor(m / 60) + '시간 ' + (m % 60) + '분'; }
+function bar(frac, cls = '') { return `<div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, frac * 100)).toFixed(2)}%"></i></div>`; }
+
+// ───────── 길 풀기 (구글 인코딩 폴리라인) ─────────
+function decode(str) {
+  const out = []; let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let r = 0, s = 0, b;
+      do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20 && i < str.length);
+      const v = (r & 1) ? ~(r >> 1) : (r >> 1);
+      if (k === 0) lat += v; else lon += v;
+    }
+    out.push([lat / 1e5, lon / 1e5]);
+  }
+  return out;
+}
+const mercX = (lon) => (lon + 180) / 360;
+const mercY = (lat) => { const r = Math.max(-85, Math.min(85, lat)) * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+
+// ───────── 데이터 읽기 ─────────
+async function fetchAll(table, cols, order) {
+  const out = []; const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await sb.from(table).select(cols).order(order, { ascending: true }).range(from, from + page - 1);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < page) break;
+  }
+  return out;
+}
+
+async function loadData() {
+  $('loading').textContent = '기록을 불러오는 중…';
+  [days, mems] = await Promise.all([
+    fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'),
+    fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'),
+  ]);
+  const s = await sb.from('summary').select('data,updated_at').maybeSingle();
+  summary = s.data?.data ?? null;
+  segs = [];
+  for (const d of days) {
+    if (!d.track) continue;
+    for (const part of d.track.split(' ')) {
+      const pts = decode(part); if (!pts.length) continue;
+      const mx = new Float64Array(pts.length), my = new Float64Array(pts.length);
+      pts.forEach((p, k) => { mx[k] = mercX(p[1]); my[k] = mercY(p[0]); });
+      segs.push({ day: d.day, mx, my, lat: pts[0][0], lon: pts[0][1] });
+    }
+  }
+  // 사진 임시 주소 (1시간 유효). 비공개 보관함이라 로그인한 본인에게만 발급됩니다.
+  const paths = [...new Set(mems.flatMap(m => (m.photos || []).map(p => `${uid}/${p.replace(/^v:/, '')}`)))];
+  photoUrl = {};
+  for (let i = 0; i < paths.length; i += 100) {
+    const { data } = await sb.storage.from('photos').createSignedUrls(paths.slice(i, i + 100), 3600);
+    for (const r of data || []) if (r.signedUrl) photoUrl[r.path] = r.signedUrl;
+  }
+}
+const pUrl = (p) => photoUrl[`${uid}/${p.replace(/^v:/, '')}`];
+
+// ───────── 지도 ─────────
+let map = null, markers = [];
+const fog = $('fog'), fctx = fog.getContext('2d');
+
+function initMap() {
+  map = new maplibregl.Map({
+    container: 'map', style: 'https://tiles.openfreemap.org/styles/liberty',
+    center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true },
+  });
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+  map.on('move', drawFog); map.on('resize', drawFog); map.on('load', () => { drawFog(); fitAll(); });
+  new ResizeObserver(drawFog).observe($('map'));
+}
+
+function inView(day) { return view.mode === 'all' || (day >= view.from && day <= view.to); }
+
+function drawFog() {
+  if (!map) return;
+  const dpr = window.devicePixelRatio || 1, w = fog.clientWidth, h = fog.clientHeight;
+  if (fog.width !== w * dpr || fog.height !== h * dpr) { fog.width = w * dpr; fog.height = h * dpr; }
+  fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fctx.globalCompositeOperation = 'source-over';
+  fctx.clearRect(0, 0, w, h);
+  fctx.globalAlpha = 0.93;
+  fctx.fillStyle = FOGS[fogIdx][1];
+  fctx.fillRect(0, 0, w, h);
+  // 지도 좌표 → 화면 좌표 (지도가 돌지 않으므로 축마다 1차식)
+  const c = map.getCenter(), z = map.getZoom();
+  const dd = Math.min(20, 360 / 2 ** z * 0.25);
+  const la1 = Math.max(-80, Math.min(80, c.lat)), lo1 = c.lng, la2 = la1 > 0 ? la1 - dd : la1 + dd, lo2 = lo1 + dd;
+  const p1 = map.project([lo1, la1]), p2 = map.project([lo2, la2]);
+  const ax = (p2.x - p1.x) / (mercX(lo2) - mercX(lo1)), bx = p1.x - ax * mercX(lo1);
+  const ay = (p2.y - p1.y) / (mercY(la2) - mercY(la1)), by = p1.y - ay * mercY(la1);
+  const mpp = 40075016.686 * Math.cos(la1 * Math.PI / 180) / Math.abs(ax);   // 화면 1px당 미터
+  const stroke = Math.max(10 / mpp, 5);
+  const margin = stroke * 2;
+  fctx.globalCompositeOperation = 'destination-out';
+  fctx.lineCap = 'round'; fctx.lineJoin = 'round';
+  const pass = (wanted, alpha, width) => {
+    fctx.globalAlpha = alpha; fctx.lineWidth = width; fctx.beginPath();
+    for (const s of segs) {
+      if (inView(s.day) !== wanted) continue;
+      let px = ax * s.mx[0] + bx, py = ay * s.my[0] + by, pen = false;
+      if (s.mx.length === 1) { fctx.moveTo(px, py); fctx.lineTo(px + 0.01, py); continue; }
+      for (let k = 1; k < s.mx.length; k++) {
+        const x = ax * s.mx[k] + bx, y = ay * s.my[k] + by;
+        if (Math.abs(x - px) + Math.abs(y - py) < 1.5 && k < s.mx.length - 1) continue;
+        if (Math.max(x, px) < -margin || Math.min(x, px) > w + margin || Math.max(y, py) < -margin || Math.min(y, py) > h + margin) { pen = false; px = x; py = y; continue; }
+        if (!pen) { fctx.moveTo(px, py); pen = true; }
+        fctx.lineTo(x, y); px = x; py = y;
+      }
+    }
+    fctx.stroke();
+  };
+  if (view.mode !== 'all') pass(false, 0.35, stroke);          // 다른 기간은 흐리게
+  pass(true, 0.3, stroke * 2.4); pass(true, 0.55, stroke * 1.6); pass(true, 1, stroke);
+  fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+}
+
+function fitTo(list) {
+  if (!map || !list.length) return;
+  let a = 90, b = -90, c = 180, d = -180;
+  for (const [lat, lon] of list) { a = Math.min(a, lat); b = Math.max(b, lat); c = Math.min(c, lon); d = Math.max(d, lon); }
+  map.fitBounds([[c, a], [d, b]], { padding: { top: 60, bottom: 60, left: innerWidth > 760 ? 380 : 40, right: 60 }, maxZoom: 15.5, duration: 900 });
+}
+function pointsInView() {
+  const pts = [];
+  for (const d of days) if (inView(d.day) && d.track) for (const part of d.track.split(' ')) { const p = decode(part); if (p.length) { pts.push(p[0]); pts.push(p[p.length - 1]); } }
+  for (const m of mems) if (inView(dayOf(m.ts))) pts.push([m.lat, m.lon]);
+  return pts;
+}
+function fitAll() { fitTo(pointsInView()); }
+function dayOf(ts) { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+
+function drawPins() {
+  markers.forEach(m => m.remove()); markers = [];
+  for (const m of mems) {
+    if (!inView(dayOf(m.ts))) continue;
+    const el = document.createElement('button');
+    el.className = 'pin' + (m.icon ? '' : ' plain');
+    el.textContent = m.icon || '';
+    el.setAttribute('aria-label', '추억: ' + (m.title || '제목 없음'));
+    const first = (m.photos || [])[0];
+    const html = `<div class="pop"><div class="t">${esc(m.icon)} ${esc(m.title || '제목 없음')}</div><div class="d">${fmtDate(m.ts)}</div>` +
+      (first && pUrl(first) ? `<img src="${pUrl(first)}" alt="">` : '') +
+      (m.body ? `<div class="b">${esc(m.body)}</div>` : '') + `<button class="link" data-open="${m.id}">크게 보기 →</button></div>`;
+    const pop = new maplibregl.Popup({ offset: 20, maxWidth: '280px' }).setHTML(html);
+    markers.push(new maplibregl.Marker({ element: el }).setLngLat([m.lon, m.lat]).setPopup(pop).addTo(map));
+  }
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openMemory(+b.dataset.open); });
+
+function updatePanel() {
+  const ds = days.filter(d => inView(d.day));
+  const dist = ds.reduce((s, d) => s + d.dist_walk + d.dist_car + d.dist_plane, 0);
+  const area = ds.reduce((s, d) => s + d.area_km2, 0);
+  $('sArea').textContent = fmtArea(area);
+  $('sAreaL').textContent = view.mode === 'all' ? '밝힌 영역' : '새로 밝힌 영역';
+  $('sDist').textContent = fmtDist(dist);
+  $('sMem').textContent = mems.filter(m => inView(dayOf(m.ts))).length + '개';
+}
+
+function setView(mode, from, to, fit = true) {
+  view = { mode, from, to };
+  $('mAll').setAttribute('aria-pressed', mode === 'all'); $('mRange').setAttribute('aria-pressed', mode !== 'all');
+  $('rangeBox').classList.toggle('hidden', mode === 'all');
+  if (from) $('from').value = from; if (to) $('to').value = to;
+  updatePanel(); drawPins(); drawFog(); if (fit) fitAll();
+}
+$('mAll').onclick = () => setView('all');
+$('mRange').onclick = () => {
+  const t = new Date(), to = dayOf(t.getTime()), from = dayOf(new Date(t.getFullYear(), t.getMonth(), 1).getTime());
+  setView('range', $('from').value || from, $('to').value || to);
+};
+$('from').onchange = $('to').onchange = () => { let a = $('from').value, b = $('to').value; if (a && b) { if (a > b) [a, b] = [b, a]; setView('range', a, b); } };
+
+function buildFogPick() {
+  const box = $('fogPick');
+  FOGS.forEach(([name, col], i) => {
+    const b = document.createElement('button');
+    b.style.background = col; b.title = name; b.setAttribute('aria-label', name); b.setAttribute('aria-pressed', i === fogIdx);
+    b.onclick = () => { fogIdx = i; localStorage.setItem('mp_fog', i); box.querySelectorAll('button').forEach((x, k) => x.setAttribute('aria-pressed', k === i)); drawFog(); };
+    box.appendChild(b);
+  });
+}
+
+// ───────── 통계 ─────────
+function renderStats() {
+  const dist = [0, 0, 0]; let area = 0, steps = 0;
+  for (const d of days) { dist[0] += d.dist_walk; dist[1] += d.dist_car; dist[2] += d.dist_plane; area += d.area_km2; steps += d.steps || 0; }
+  const tot = dist[0] + dist[1] + dist[2], km = tot / 1000, rounds = km / 40075;
+  const S = summary || {};
+  const earthPct = S.earthPct ?? area / 510072000 * 100;
+  const level = Math.floor(Math.sqrt(S.area ?? area)) + 1;
+  let h = `<h2>나의 기록</h2>`;
+  if (S.updated) h += `<p class="muted" style="margin-top:-10px">폰에서 마지막으로 올린 시각: ${new Date(S.updated).toLocaleString('ko-KR')}</p>`;
+  h += `<div class="grid">
+    <div class="card"><span class="muted">지구에서 밝힌 곳</span><div class="big">${fmtPct(earthPct)}</div><span>${fmtArea(S.area ?? area)} · 탐험 레벨 ${level}</span></div>
+    <div class="card"><span class="muted">지나온 길</span><div class="big">${fmtDist(tot)}</div><span>지구 ${rounds < 0.01 ? rounds.toFixed(5) : rounds.toFixed(2)}바퀴 · 달까지 ${fmtPct(km / 384400 * 100)}</span>${bar(rounds - Math.floor(rounds), 'sky')}</div>
+    <div class="card"><span class="muted">이동 수단</span>
+      <div class="row"><span>🚶 걷기</span><span class="v">${fmtDist(dist[0])}</span></div>
+      <div class="row"><span>🚗 차 · 기차</span><span class="v">${fmtDist(dist[1])}</span></div>
+      <div class="row"><span>✈️ 비행기</span><span class="v">${fmtDist(dist[2])}</span></div></div>
+    <div class="card"><span class="muted">남긴 추억</span><div class="big">${mems.length}개</div><span>기록한 날 ${days.length}일${steps ? ' · 걸음 ' + nf.format(steps) + '보' : ''}</span></div>
+  </div>`;
+  if (S.countries?.length) {
+    h += `<section><h2>나라 · 지역 달성률</h2><div class="grid">`;
+    for (const c of S.countries) {
+      h += `<div class="card"><div class="row"><h3>${esc(c.name)}</h3><b style="color:var(--amber)">${fmtPct(c.pct)}</b></div>${bar(c.pct / 100)}`;
+      for (const r of c.regions.slice(0, 8)) h += `<div class="row"><span>${esc(r.name)}</span><span class="v">${fmtPct(r.pct)}</span></div>${bar(r.pct / 100, 'sky')}`;
+      if (c.regions.length > 8) h += `<span class="muted">외 ${c.regions.length - 8}개 지역</span>`;
+      h += `</div>`;
+    }
+    h += `</div></section>`;
+  }
+  if (S.towns?.length) {
+    h += `<section><h2>동네 정복 <span class="muted" style="font-size:16px">${S.towns.length} / ${S.townTotal}곳</span></h2><div class="card">`;
+    for (const t of S.towns.slice(0, 40)) h += `<div class="row"><span>${esc(t.name)}</span><span class="v">${fmtPct(t.pct)} · ${fmtArea(t.area)}</span></div>${bar(t.pct / 100, 'green')}`;
+    h += `</div></section>`;
+  }
+  if (S.places?.length) {
+    h += `<section><h2>자주 가는 곳</h2><div class="grid">`;
+    S.places.forEach((p, i) => { h += `<div class="card"><div class="row"><h3>${['🥇', '🥈', '🥉'][i] ?? i + 1} ${esc(p.name || (p.near ? p.near + ' 근처' : '이름 없는 곳'))}</h3></div><span class="muted">${p.visits}번 머묾 · 모두 ${hours(p.ms)}</span></div>`; });
+    h += `</div></section>`;
+  }
+  if (S.badges?.length) {
+    const got = S.badges.filter(b => b.got).length;
+    h += `<section><h2>배지 <span class="muted" style="font-size:16px">${got} / ${S.badges.length}</span></h2><div class="badges">`;
+    for (const b of S.badges) h += `<div class="badge ${b.got ? 'got' : ''}"><div class="e">${b.emoji}</div><b>${esc(b.title)}</b><span>${esc(b.desc)}</span></div>`;
+    h += `</div></section>`;
+  }
+  if (!summary) h += `<p class="muted">달성률, 동네, 배지는 폰에서 첫 동기화가 끝나면 나타나요.</p>`;
+  $('statsBox').innerHTML = h;
+}
+
+// ───────── 앨범 ─────────
+let albumFilter = null;
+function renderAlbum() {
+  const icons = [...new Set(mems.map(m => m.icon).filter(Boolean))];
+  $('chips').innerHTML = [null, ...icons].map(g => `<button data-g="${g ?? ''}" aria-pressed="${albumFilter === g}">${g == null ? '전체' : g + ' ' + (ICON_NAMES[g] ?? '')}</button>`).join('');
+  $('chips').querySelectorAll('button').forEach(b => b.onclick = () => { albumFilter = b.dataset.g || null; renderAlbum(); });
+  const list = mems.filter(m => albumFilter == null || m.icon === albumFilter).sort((a, b) => b.ts - a.ts);
+  if (!list.length) { $('albumBox').innerHTML = `<p class="muted">아직 올라온 추억이 없어요.</p>`; return; }
+  const groups = new Map();
+  for (const m of list) { const d = new Date(m.ts); const k = `${d.getFullYear()}년 ${d.getMonth() + 1}월`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); }
+  const tints = ['#2B3A55', '#3A2F4F', '#24443E', '#4A3526', '#3B3F2A', '#45283A'];
+  let h = '';
+  for (const [k, arr] of groups) {
+    h += `<div class="month"><h3>${k}</h3><span class="muted">${arr.length}개</span></div><div class="album">`;
+    for (const m of arr) {
+      const p = (m.photos || [])[0], u = p && pUrl(p), d = new Date(m.ts);
+      h += `<button class="mcard" data-open="${m.id}">` +
+        (u ? `<img src="${u}" alt="" loading="lazy">` : `<div class="ph" style="background:${tints[Math.abs(m.id) % tints.length]}">${m.icon || '📍'}</div>`) +
+        `<div class="shade"></div>` + (u && m.icon ? `<div class="ic">${m.icon}</div>` : '') +
+        ((m.photos || []).length > 1 ? `<div class="cnt">${m.photos.length}장</div>` : '') +
+        `<div class="cap"><b>${esc(m.title || '제목 없음')}</b><span>${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})</span></div></button>`;
+    }
+    h += `</div>`;
+  }
+  $('albumBox').innerHTML = h;
+}
+
+function openMemory(id) {
+  const m = mems.find(x => x.id === id); if (!m) return;
+  const imgs = (m.photos || []).map(p => pUrl(p) ? `<img src="${pUrl(p)}" alt="" loading="lazy">` : '').join('');
+  $('dlgBox').innerHTML = `<div class="top"><div><h3>${esc(m.icon)} ${esc(m.title || '제목 없음')}</h3><div class="muted">${fmtDate(m.ts)}</div></div><button class="x" id="dlgX" aria-label="닫기">✕</button></div>` +
+    (m.body ? `<div class="body">${esc(m.body)}</div>` : '') + (imgs ? `<div class="photos">${imgs}</div>` : '') +
+    ((m.photos || []).some(p => p.startsWith('v:')) ? `<p class="muted">영상은 첫 장면만 올라와요. 원본은 폰에서 볼 수 있어요.</p>` : '') +
+    `<div><button class="btn" id="dlgMap">지도에서 보기</button></div>`;
+  $('dlg').showModal();
+  $('dlgX').onclick = () => $('dlg').close();
+  $('dlgMap').onclick = () => { $('dlg').close(); go('map'); setView('all', null, null, false); map.flyTo({ center: [m.lon, m.lat], zoom: 16 }); };
+}
+$('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').close(); });
+
+// ───────── 하루 기록 ─────────
+function renderDays() {
+  const rows = [...days].sort((a, b) => b.day.localeCompare(a.day));
+  $('dayRows').innerHTML = rows.map(d => `<tr data-day="${d.day}"><td><button>${fmtDayLabel(d.day)}</button></td><td>${fmtDist(d.dist_walk + d.dist_car + d.dist_plane)}</td><td>${fmtDist(d.dist_walk)}</td><td>${fmtDist(d.dist_car)}</td><td>${fmtArea(d.area_km2)}</td><td>${d.steps ? nf.format(d.steps) : '-'}</td></tr>`).join('') ||
+    `<tr><td colspan="6" class="muted">아직 올라온 기록이 없어요.</td></tr>`;
+  $('dayRows').querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = () => { go('map'); setView('range', tr.dataset.day, tr.dataset.day); });
+}
+
+// ───────── 화면 전환 ─────────
+function go(page) {
+  document.querySelectorAll('nav button[data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('hidden', p.id !== 'page-' + page));
+  if (page === 'map' && map) setTimeout(() => { map.resize(); drawFog(); }, 0);
+}
+document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
+
+// ───────── 로그인 ─────────
+async function start(session) {
+  uid = session.user.id;
+  $('who').textContent = session.user.email;
+  $('login').classList.add('hidden');
+  $('loading').classList.remove('hidden');
+  try {
+    await loadData();
+  } catch (e) {
+    $('loading').textContent = '기록을 불러오지 못했어요: ' + (e.message || e);
+    return;
+  }
+  $('loading').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  if (summary?.startTs) { const n = Math.floor((Date.now() - summary.startTs) / 86400000) + 1; $('dplus').textContent = `함께한 지 D+${n}`; }
+  if (!map) { initMap(); buildFogPick(); }
+  setView('all', null, null, false);
+  renderStats(); renderAlbum(); renderDays();
+}
+
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('loginErr').textContent = ''; $('loginBtn').disabled = true; $('loginBtn').textContent = '로그인 중…';
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
+  $('loginBtn').disabled = false; $('loginBtn').textContent = '로그인';
+  if (error) { $('loginErr').textContent = error.status === 400 ? '이메일이나 비밀번호가 맞지 않아요.' : error.message; return; }
+  $('pw').value = '';
+  start(data.session);
+};
+$('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+const { data: { session } } = await sb.auth.getSession();
+$('loading').classList.add('hidden');
+if (session) start(session); else $('login').classList.remove('hidden');
+</script>
+</body>
+</html>
