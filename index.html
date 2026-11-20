@@ -353,7 +353,7 @@ function initMap() {
   });
   map.touchZoomRotate.disableRotation();
   // 안개를 지도 그림 바로 위, 추억 핀·버튼 아래에 둡니다.
-  map.getCanvasContainer().after(fog);
+  map.getCanvas().after(fog);
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
   map.on('move', drawFog); map.on('resize', drawFog); map.on('load', () => { drawFog(); fitAll(); });
   new ResizeObserver(drawFog).observe($('map'));
@@ -572,7 +572,8 @@ function renderDays() {
 function go(page) {
   document.querySelectorAll('nav button[data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('hidden', p.id !== 'page-' + page));
-  if (page === 'map' && map) setTimeout(() => { map.resize(); drawFog(); }, 0);
+  // 숨겨져 있던 지도는 크기가 0이 되므로, 다시 보일 때 바로 크기를 맞춥니다.
+  if (page === 'map' && map) { map.resize(); drawFog(); }
 }
 document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
 
