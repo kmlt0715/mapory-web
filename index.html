@@ -575,6 +575,7 @@ class Fog {
 function makeMap(container, opts = {}) {
   const map = new maplibregl.Map({ container, style: STYLE, center: [126.978, 37.5665], zoom: 11, maxPitch: 0, dragRotate: false, attributionControl: { compact: true }, ...opts });
   map.touchZoomRotate.disableRotation();
+  map.on('load', () => { map._ready = true; });
   try { map.keyboard.disableRotation(); } catch (e) {}
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
   return map;
@@ -756,7 +757,7 @@ function globeFilter(upto) {
   map.setFilter('trk-now', upto == null ? ['==', ['get', 'i'], -1] : ['==', ['get', 'i'], upto]);
 }
 function setGlobe(on) {
-  if (!map.isStyleLoaded()) return;
+  if (!map._ready) return;
   globeOn = on;
   $('bGlobe').setAttribute('aria-pressed', on); $('bGlobe').classList.toggle('on', on);
   $('globeHint').classList.toggle('hidden', !on);
@@ -1124,20 +1125,20 @@ function initJourney() {
 }
 
 function jColor() {
-  if (!jmap?.isStyleLoaded()) return;
+  if (!jmap?._ready) return;
   const col = JCOL[jcfg.col][1];
   for (const id of ['j-old', 'j-glow', 'j-new']) jmap.setPaintProperty(id, 'line-color', col);
   jmap.setPaintProperty('j-halo', 'circle-color', col);
 }
 function jSetProjection() {
-  if (!jmap?.isStyleLoaded()) return;
+  if (!jmap?._ready) return;
   jmap.setProjection({ type: jcfg.globe ? 'globe' : 'mercator' });
   if (jcfg.globe) { try { jmap.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {} }
 }
 
 /** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
 function jPreview(fit) {
-  if (!jmap?.isStyleLoaded()) return;
+  if (!jmap?._ready) return;
   JP = buildPath(jcfg.from, jcfg.to);
   $('jMsg').textContent = JP ? `점 ${nf.format(JP.n)}개 · ${fmtDist(JP.D[JP.n - 1])}` : '이 기간에는 기록이 없어요.';
   $('jPlay').disabled = $('jRec').disabled = !JP;
