@@ -1493,7 +1493,7 @@ function jRecFrame() {
 const TOOLS = {};
 const CTX = {
   sb, $, esc, nf, fmtDist, fmtArea, fmtDate, fmtDayLabel, dayOf, addDays, decode, encodeLine, encodeNums, decodeNums, mercX, mercY, STYLE, ICON_NAMES, DOW, DEMO,
-  makeMap, Fog, boundsOf, pUrl, firstPhoto, openMemory, fetchAll, go, TOOLS, total,
+  makeMap, Fog, boundsOf, pUrl, firstPhoto, openMemory, fetchAll, go, TOOLS, total, fmtPct, bar, hours,
   get uid() { return uid; }, get days() { return days; }, get mems() { return mems; }, set mems(v) { mems = v; },
   get segs() { return segs; }, get summary() { return summary; }, get extra() { return extra; }, set extra(v) { extra = v; },
   get hasWebCols() { return hasWebCols; }, get hasExtra() { return hasExtra; },
@@ -1527,6 +1527,7 @@ async function start(session) {
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
   try { (await import('./tools.js?v=6')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
+  try { (await import('./stats.js?v=1')).setup(CTX); } catch (e) { console.error('통계를 불러오지 못했어요', e); }
   go('home');
 }
 
