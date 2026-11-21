@@ -14,7 +14,56 @@ export function setup(ctx) {
   addPage('plans', '📍 여행 계획', plansHtml(), { init: initPlans, show: () => { pl?.map?.resize(); pl?.fog?.draw(); } });
   addPage('workshop', '🗂️ 추억 정리', workshopHtml(), { init: initWorkshop, show: () => { renderWsList(); ws?.map?.resize(); } });
   addPage('import', '📥 옛 기록 불러오기', importHtml(), { init: initImport, show: renderImportState });
-  addPage('backup', '💾 백업', backupHtml(), { init: initBackup, show: renderBackupInfo });
+  addPage('backup', '💾 백업', backupHtml(), { init: initBackup, show: () => { renderBackupInfo(); loadUsage(); } });
+  initUsage();
+}
+
+// ───────── 서버(Supabase 무료) 사용량 ─────────
+const LIMIT = { db: 500 * 1024 * 1024, storage: 1024 * 1024 * 1024 };
+let usage = null;
+const mb = (b) => b >= 1024 ** 3 ? (b / 1024 ** 3).toFixed(2) + ' GB' : (b / 1024 ** 2).toFixed(b < 10 * 1024 ** 2 ? 1 : 0) + ' MB';
+function initUsage() {
+  const box = document.createElement('button');
+  box.id = 'usageNav'; box.className = 'usageNav'; box.title = '서버 사용량 자세히 보기';
+  box.onclick = () => C.go('backup');
+  const nav = document.querySelector('nav'), sp = nav.querySelector('.spacer');
+  sp.after(box);
+  loadUsage();
+  setInterval(loadUsage, 10 * 60 * 1000);
+}
+async function loadUsage() {
+  if (C.DEMO) usage = { db: 41 * 1024 ** 2, storage: 236 * 1024 ** 2, files: 612 };
+  else {
+    const { data, error } = await C.sb.rpc('mapory_usage');
+    usage = error ? { error: true } : data;
+  }
+  renderUsage();
+}
+function usageBar(label, used, lim) {
+  const pct = Math.min(100, used / lim * 100), warn = pct >= 80;
+  return `<div class="ub"><div class="row"><span>${label}</span><span class="v">${mb(used)} / ${mb(lim)} · ${pct < 1 ? pct.toFixed(1) : Math.round(pct)}%</span></div>
+    <div class="bar"><i style="width:${Math.max(pct, 0.6).toFixed(1)}%;${warn ? 'background:var(--red,#E5533D)' : ''}"></i></div></div>`;
+}
+function renderUsage() {
+  const nav = $('usageNav');
+  if (nav) {
+    if (!usage || usage.error) nav.innerHTML = `<span>서버 사용량</span><small>${usage?.error ? '설정 필요' : '확인 중…'}</small>`;
+    else {
+      const p1 = usage.db / LIMIT.db * 100, p2 = usage.storage / LIMIT.storage * 100;
+      nav.innerHTML = `<span>서버 사용량</span><div class="mini"><i style="width:${Math.max(1, Math.min(100, p1)).toFixed(1)}%"></i></div><small>기록 ${Math.round(p1)}%</small><div class="mini"><i style="width:${Math.max(1, Math.min(100, p2)).toFixed(1)}%"></i></div><small>사진 ${Math.round(p2)}%</small>`;
+    }
+  }
+  const card = $('usageCard'); if (!card) return;
+  if (!usage) { card.innerHTML = '<p class="muted">확인 중…</p>'; return; }
+  if (usage.error) {
+    card.innerHTML = `<div class="note warn">사용량을 읽으려면 Supabase에서 <b>upgrade-3.sql</b>을 한 번 실행해 주세요. (SQL Editor → New query → 붙여 넣고 Run)</div>`;
+    return;
+  }
+  const per = usage.files ? usage.storage / usage.files : 250 * 1024;
+  const left = Math.max(0, Math.floor((LIMIT.storage - usage.storage) / per));
+  card.innerHTML = usageBar('🗄️ 기록 (데이터베이스)', usage.db, LIMIT.db) + usageBar(`🖼️ 사진 저장소 (${C.nf.format(usage.files || 0)}장)`, usage.storage, LIMIT.storage) +
+    `<p class="muted" style="margin:0">지금 속도라면 사진을 약 ${C.nf.format(left)}장 더 올릴 수 있어요. 데이터베이스 크기에는 서버 기본 구조(약 20~30MB)도 들어 있어요.
+    무료 요금제는 한 달에 내려받는 양(5GB)도 한도가 있지만, 이건 Supabase 화면(Settings → Usage)에서만 볼 수 있어요. 80%를 넘으면 막대가 빨갛게 바뀌어요.</p>`;
 }
 
 // ───────── 공통: 화면 추가 ─────────
@@ -39,6 +88,13 @@ function injectStyle() {
   const st = document.createElement('style');
   st.textContent = `
   nav { overflow-y: auto; }
+  nav > * { flex-shrink: 0; }
+  .usageNav { margin: 6px 6px 4px; background: var(--field); border: 0; border-radius: 12px; padding: 10px 12px; color: var(--sub); font-size: 11px; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; text-align: left; cursor: pointer; font-family: inherit; }
+  .usageNav span { grid-column: 1 / -1; font-size: 12px; color: var(--txt); }
+  .usageNav .mini { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; }
+  .usageNav .mini i { display: block; height: 100%; background: var(--amber); }
+  .ub { display: flex; flex-direction: column; gap: 6px; }
+  .ub .bar { height: 10px; border-radius: 5px; }
   nav .navSep { font-size: 11px; color: var(--sub); padding: 14px 12px 4px; letter-spacing: .08em; opacity: .7; }
   .tool { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
   .tool > .side { background: var(--panel); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -957,7 +1013,7 @@ function importHtml() {
     </div>
     <div class="card" style="padding:16px;gap:10px;background:var(--field)">
       <h3>📷 옛 사진 위치</h3>
-      <p class="muted" style="margin:0">위치 정보가 담긴 사진을 고르면 찍은 곳의 안개가 걷혀요. 사진 자체는 올리지 않고 위치와 날짜만 읽어요.</p>
+      <p class="muted" style="margin:0">위치 정보가 담긴 사진을 고르면 찍은 곳의 안개가 걷혀요. 사진 자체는 올리지 않고 위치와 날짜만 읽어요. 사진 위치는 선으로 잇지 않고, 여정 영상에도 넣지 않아요.</p>
       <input type="file" id="imP" accept="image/*,.heic,.heif" multiple>
       <label class="chk" style="font-size:13px"><input type="checkbox" id="imPDir"> 폴더째 고르기</label>
     </div>
@@ -1023,9 +1079,9 @@ function showImportOnMap(rows, fit = true) {
   const feats = [];
   for (const r of rows) {
     const pts = (r.track || '').split(' ').flatMap(part => C.decode(part)); if (!pts.length) continue;
-    if (pts.length > 1) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(p => [p[1], p[0]]) } });
-    // 사진 위치는 점마다 보여주고, 저장된 것은 눌러서 지울 수 있게
+    // 사진 위치는 점마다 보여주고(선으로 잇지 않음), 저장된 것은 눌러서 지울 수 있게
     const src = r.source || im.pending?.source;
+    if (pts.length > 1 && src === 'google') feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(p => [p[1], p[0]]) } });
     if (src === 'photo' || src === 'phone' || pts.length === 1)
       pts.forEach((p, i) => feats.push({ type: 'Feature', properties: saved ? { src, day: r.day, i } : {}, geometry: { type: 'Point', coordinates: [p[1], p[0]] } }));
   }
@@ -1197,7 +1253,8 @@ function backupHtml() {
   return `<div class="scroll" style="max-width:820px">
   <h2>💾 백업</h2>
   <p class="muted">서버에 있는 Mapory 기록을 내 컴퓨터에 내려받아요. 휴대폰을 바꾸거나 잃어버려도, 서버에 문제가 생겨도 기록을 지킬 수 있어요.</p>
-  <div class="card" style="margin-top:18px"><h3>📦 전체 백업 (zip 파일 하나)</h3>
+  <div class="card" style="margin-top:18px"><h3>☁️ 서버 사용량 (Supabase 무료 한도)</h3><div id="usageCard" style="display:flex;flex-direction:column;gap:12px"></div></div>
+  <div class="card" style="margin-top:14px"><h3>📦 전체 백업 (zip 파일 하나)</h3>
     <div id="bkInfo" class="muted"></div>
     <label class="chk"><input type="checkbox" id="bkPhotos" checked> 사진도 함께 받기</label>
     <button class="btn primary" id="bkAll" style="align-self:flex-start">📦 전체 백업 내려받기</button>
@@ -1210,7 +1267,7 @@ function backupHtml() {
 </div>`;
 }
 function initBackup() {
-  renderBackupInfo();
+  renderBackupInfo(); renderUsage();
   bindPills('bkGpxR', (k) => { $('bkGpxR').dataset.k = k; });
   $('bkGpx').onclick = () => { const [a, b] = rangeOf($('bkGpxR').dataset.k || 'all'); download(`mapory-${a}_${b}.gpx`, gpx((d) => d >= a && d <= b), 'application/gpx+xml'); };
   $('bkCsvD').onclick = () => download('mapory-days.csv', daysCsv(), 'text/csv');

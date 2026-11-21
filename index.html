@@ -303,7 +303,7 @@
         </div>
         <div class="range"><input type="date" id="jFrom" aria-label="시작일"><span class="muted">–</span><input type="date" id="jTo" aria-label="종료일"></div>
         <div class="two">
-          <label>재생 길이<select id="jDur"><option value="15">15초</option><option value="30">30초</option><option value="60">1분</option><option value="90">1분 30초</option></select></label>
+          <label>재생 길이<select id="jDur"><option value="15">15초</option><option value="30">30초</option><option value="60">1분</option><option value="90">1분 30초</option><option value="120">2분</option><option value="180">3분</option><option value="300">5분</option></select></label>
           <label>카메라<select id="jCam"><option value="auto">따라가기 · 하루 크기에 맞춤</option><option value="near">따라가기 · 동네</option><option value="city">따라가기 · 도시</option><option value="country">따라가기 · 나라</option><option value="fixed">전체 고정</option></select></label>
         </div>
         <label class="chk"><input type="checkbox" id="jFast"> 장거리 이동은 빨리 넘기기</label>
@@ -500,6 +500,11 @@ async function loadData() {
   if (DEMO) return;
   await signPhotos();
 }
+/** 사진 위치: 점마다 따로 (선으로 잇지 않음) */
+function splitTrack(track) {
+  const out = []; for (const part of track.split(' ')) for (const p of decode(part)) out.push(encodeLine([p]));
+  return out.join(' ');
+}
 function joinTrack(track) {
   const pts = []; for (const part of track.split(' ')) for (const p of decode(part)) pts.push(p);
   return pts.length ? encodeLine(pts) : '';
@@ -507,8 +512,8 @@ function joinTrack(track) {
 /** 앱 기록 + 불러온 옛 기록(구글 타임라인·사진)을 지도에 그릴 길 조각으로 */
 function buildSegs() {
   segs = [];
-  // 불러온 옛 기록(구글·사진)은 띄엄띄엄 있어도 하루치를 시간 순서대로 한 줄로 잇습니다.
-  const joined = extra.map(e => ({ ...e, track: e.track ? joinTrack(e.track) : '' }));
+  // 구글 타임라인은 띄엄띄엄 있어도 하루치를 시간 순서대로 한 줄로 잇고, 사진 위치는 점마다 안개만 걷습니다.
+  const joined = extra.map(e => ({ ...e, track: !e.track ? '' : e.source === 'google' ? joinTrack(e.track) : splitTrack(e.track) }));
   for (const d of [...days, ...joined]) {
     if (!d.track) continue;
     for (const part of d.track.split(' ')) {
@@ -1033,7 +1038,7 @@ function renderDays() {
 // ───────── 여정 영상: 점이 이동 기록을 따라 움직이며 선을 그림 ─────────
 let jmap = null, J = null, JP = null;
 const JCOL = [['핑크', '#E91E63'], ['노랑', '#F59E0B'], ['파랑', '#1E88E5']];
-const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 30, cam: 'auto', fast: true, globe: false, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
+const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 60, cam: 'auto', fast: true, globe: false, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
 if (!jcfg.v2) { jcfg.cam = 'auto'; jcfg.v2 = 1; }
 const saveJcfg = () => localStorage.setItem('mp_journey', JSON.stringify(jcfg));
 const EMPTY = { type: 'FeatureCollection', features: [] };
@@ -1046,7 +1051,8 @@ function distM(a, b, c, d) {
 
 /** 고른 기간의 길을 시간 순서대로 한 줄로 잇고, 재생 속도를 정할 '무게'를 매깁니다. */
 function buildPath(from, to) {
-  const list = segs.filter(s => s.day >= from && s.day <= to);
+  // 여정은 앱으로 기록한 길과 구글 타임라인만 (사진 위치는 안개만 걷음)
+  const list = segs.filter(s => s.day >= from && s.day <= to && s.src !== 'photo' && s.src !== 'phone');
   if (!list.length) return null;
   const la = [], lo = [];
   for (const s of list) for (const p of s.ll) { lo.push(p[0]); la.push(p[1]); }
@@ -1084,7 +1090,7 @@ function buildPath(from, to) {
     for (let i = 1; i < n; i++) { const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]); if (d > HOP) { hop[i] = d; idx.push(i); } }
     if (idx.length) {
       const total = W[n - 1];
-      const minW = Math.min(total * 4 / Math.max(5, jcfg.dur), total * 0.6 / idx.length);   // 한 번에 약 3초
+      const minW = Math.min(total * 5.5 / Math.max(5, jcfg.dur), total * 0.6 / idx.length);   // 한 번에 약 5초
       const w = new Float64Array(n);
       for (let i = 1; i < n; i++) w[i] = W[i] - W[i - 1];
       for (const i of idx) w[i] = Math.max(w[i], minW);
@@ -1099,9 +1105,17 @@ function buildPath(from, to) {
     for (let k = zs; k < e; k++) { xs.push(pts[k][0]); ys.push(pts[k][1]); }
     xs.sort((x, y) => x - y); ys.sort((x, y) => x - y);
     const c = xs.length > 50 ? 0.02 : 0;
-    const x0 = q(xs, c), x1 = q(xs, 1 - c), y0 = q(ys, c), y1 = q(ys, 1 - c);
-    zones.push({ c: [(x0 + x1) / 2, (y0 + y1) / 2], w: distM((y0 + y1) / 2, x0, (y0 + y1) / 2, x1), h: distM(y0, x0, y1, x0) });
-    for (let k = zs; k < e; k++) zoneOf[k] = zones.length - 1;
+    let x0 = q(xs, c), x1 = q(xs, 1 - c), y0 = q(ys, c), y1 = q(ys, 1 - c);
+    const diag = (a, b, cc, d) => distM(cc, a, d, b);
+    // 앞 구역과 범위가 비슷하게 겹치면(같은 동네·같은 도시) 하나로 합쳐 화면이 자꾸 바뀌지 않게 함
+    const prev = zones[zones.length - 1];
+    if (prev) {
+      const [a0, a1, b0, b1] = prev.b, u = [Math.min(a0, x0), Math.max(a1, x1), Math.min(b0, y0), Math.max(b1, y1)];
+      const dp = diag(a0, a1, b0, b1), dt = diag(x0, x1, y0, y1), du = diag(...u);
+      if (du <= 1.5 * Math.max(dp, dt) + 3000) { x0 = u[0]; x1 = u[1]; y0 = u[2]; y1 = u[3]; zones.pop(); }
+    }
+    zones.push({ b: [x0, x1, y0, y1], c: [(x0 + x1) / 2, (y0 + y1) / 2], w: distM((y0 + y1) / 2, x0, (y0 + y1) / 2, x1), h: distM(y0, x0, y1, x0) });
+    for (let k = zs; k < e; k++) zoneOf[k] = zones.length - 1;   // 합쳐졌으면 앞 구역과 같은 번호
     zs = e;
   };
   for (let i = 1; i < n; i++) if (day[i] !== day[i - 1] || distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]) > 120000) closeZone(i);
@@ -1298,7 +1312,7 @@ function jTick(now) {
       if (J.inHop) { J.inHop = false; J.speed = 0; }
       if (jcfg.cam === 'auto') {
         // 하루 범위에 맞춰: 그날 돌아다닌 곳 전체가 보이게 천천히 확대·축소하며 이동
-        const Z = P.zones[P.zoneOf[i]], k = 1 - Math.pow(0.08, dt);
+        const Z = P.zones[P.zoneOf[i]], k = 1 - Math.pow(0.3, dt);   // 천천히 따라가서 어지럽지 않게
         J.zoom += (zoneZoom(Z) - J.zoom) * k;
         J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], Z.c[0]) * k), J.cam[1] + (Z.c[1] - J.cam[1]) * k];
         J.hopStart = J.zoom;
@@ -1408,7 +1422,7 @@ async function start(session) {
   if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
-  try { (await import('./tools.js?v=3')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
+  try { (await import('./tools.js?v=5')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   go('home');
 }
 
