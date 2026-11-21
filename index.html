@@ -7,15 +7,36 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>try { const t = localStorage.getItem('mp_theme'); if (t && t !== 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <title>Mapory</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
 <style>
+  /* 테마: 다크(기본) · 라이트 · 우주 */
   :root {
     --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758; --grid: #2A3544;
     --amber: #F5B041; --amber-dark: #3A2C10; --amber-text: #FFD27A; --on-amber: #1A1408;
     --txt: #F3EFE6; --sub: #C9D2DD; --green: #5FD3A2; --sky: #7FB6F2;
+    --float: rgba(20,27,36,.95); --tipbg: #0B1017; --stage: #0B1017; --mapbg: #070A10; --goal: rgba(255,255,255,.35); --shadow: rgba(0,0,0,.35);
+    color-scheme: dark;
   }
+  :root[data-theme=light] {
+    --bg: #F3F4F6; --panel: #FFFFFF; --field: #EEF1F5; --line: #D3D9E1; --grid: #E2E7ED;
+    --amber: #F0A02A; --amber-dark: #FDEFD3; --amber-text: #8A5A06; --on-amber: #241602;
+    --txt: #1A222D; --sub: #556070; --green: #23955A; --sky: #3D7FD6;
+    --float: rgba(255,255,255,.96); --tipbg: #FFFFFF; --stage: #DCE2E9; --mapbg: #E8ECF0; --goal: rgba(26,34,45,.35); --shadow: rgba(26,34,45,.12);
+    color-scheme: light;
+  }
+  :root[data-theme=space] {
+    --bg: #0D1026; --panel: #151938; --field: #1D2248; --line: #363C7A; --grid: #252A58;
+    --amber: #FFB86B; --amber-dark: #3B2A4F; --amber-text: #FFD1A1; --on-amber: #1C1030;
+    --txt: #EEF0FF; --sub: #B7BCE6; --green: #6EE7B7; --sky: #8FB8FF;
+    --float: rgba(21,25,56,.95); --tipbg: #0A0C1F; --stage: #080A1C; --mapbg: #05061A; --goal: rgba(238,240,255,.35); --shadow: rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+  :root[data-theme=space] body { background: radial-gradient(900px 500px at 85% -10%, #2A2366 0%, transparent 60%), radial-gradient(700px 400px at -10% 110%, #3B1F5C 0%, transparent 60%), var(--bg); background-attachment: fixed; }
+  :root[data-theme=space] nav { background: rgba(13,16,38,.7); }
+  .card, .tile, .badge, .fun { box-shadow: 0 1px 2px var(--shadow); }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt);
     font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
@@ -31,7 +52,7 @@
   label { font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px; }
   input[type=email], input[type=password], input[type=date], select {
     height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 15px; font-family: inherit; }
-  input[type=date], select { height: 40px; color-scheme: dark; font-size: 14px; padding: 0 10px; }
+  input[type=date], select { height: 40px; font-size: 14px; padding: 0 10px; }
   .btn { height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; padding: 0 16px; white-space: nowrap; }
   .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
   .btn.on { background: var(--amber-dark); border-color: var(--amber); color: var(--amber-text); font-weight: 700; }
@@ -54,9 +75,9 @@
   .muted { color: var(--sub); font-size: 13px; }
 
   /* 지도 공통 */
-  .mapbox { position: absolute; inset: 0; background: #070A10; }
+  .mapbox { position: absolute; inset: 0; background: var(--mapbg); }
   .fog { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
-  .float { position: absolute; z-index: 2; background: rgba(20,27,36,.95); border-radius: 18px; padding: 14px; }
+  .float { position: absolute; z-index: 2; background: var(--float); box-shadow: 0 4px 18px var(--shadow); border-radius: 18px; padding: 14px; }
   #mapPanel { top: 16px; left: 16px; width: 340px; display: flex; flex-direction: column; gap: 12px; }
   .seg { display: flex; gap: 6px; background: var(--field); border-radius: 12px; padding: 4px; }
   .seg button { flex: 1; height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--sub); font-size: 14px; }
@@ -152,7 +173,7 @@
   /* 대시보드 */
   nav .brand { background: none; border: 0; text-align: left; cursor: pointer; font-family: inherit; padding: 4px 12px 14px; }
   nav .brand:hover { opacity: .85; }
-  .hero { position: relative; overflow: hidden; border-radius: 26px; padding: 30px 34px 26px; background: radial-gradient(1200px 400px at 80% -20%, #2B3B7A 0%, transparent 60%), radial-gradient(700px 300px at 0% 120%, #3A1F5C 0%, transparent 60%), #0A0F1E; }
+  .hero { --txt: #F3EFE6; --sub: #C9D2DD; color: var(--txt); position: relative; overflow: hidden; border-radius: 26px; padding: 30px 34px 26px; background: radial-gradient(1200px 400px at 80% -20%, #2B3B7A 0%, transparent 60%), radial-gradient(700px 300px at 0% 120%, #3A1F5C 0%, transparent 60%), #0A0F1E; }
   .stars, .stars::after { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent), radial-gradient(1px 1px at 90px 120px, #cfe, transparent), radial-gradient(1.2px 1.2px at 160px 60px, #fff, transparent), radial-gradient(1px 1px at 230px 170px, #ffd, transparent), radial-gradient(1.4px 1.4px at 300px 40px, #fff, transparent); background-size: 340px 220px; opacity: .55; animation: twinkle 4s ease-in-out infinite alternate; }
   .stars::after { content: ''; background-size: 270px 190px; background-position: 60px 90px; animation-delay: 2s; }
   @keyframes twinkle { from { opacity: .25; } to { opacity: .75; } }
@@ -214,7 +235,7 @@
   .hBars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 170px; }
   .hb { flex: 1; height: 100%; display: flex; align-items: flex-end; }
   .hb i { display: block; width: 100%; border-radius: 3px 3px 0 0; min-height: 0; }
-  .goalLine { position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgba(255,255,255,.35); pointer-events: none; }
+  .goalLine { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--goal); pointer-events: none; }
   .goalLine span { position: absolute; right: 0; top: -16px; font-size: 10px; color: var(--sub); }
   @media (max-width: 1100px) { .hTop, .hMid { grid-template-columns: 1fr; } }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
@@ -239,7 +260,7 @@
   .months .m span { font-size: 11px; color: var(--sub); }
   .months .m b { font-size: 10px; color: var(--sub); font-weight: 500; white-space: nowrap; }
   .strip { display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: 12px; overflow-x: auto; padding-bottom: 6px; }
-  #tip { position: fixed; z-index: 60; pointer-events: none; background: #0B1017; color: var(--txt); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; white-space: nowrap; }
+  #tip { position: fixed; z-index: 60; pointer-events: none; background: var(--tipbg); box-shadow: 0 6px 20px var(--shadow); color: var(--txt); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; white-space: nowrap; }
 
   /* 앨범 */
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -1804,7 +1825,7 @@ async function start(session) {
   if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
-  try { (await import('./tools.js?v=6')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
+  try { (await import('./tools.js?v=7')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   try { (await import('./stats.js?v=2')).setup(CTX); } catch (e) { console.error('통계를 불러오지 못했어요', e); }
   try { (await import('./health.js?v=2')).setup(CTX); } catch (e) { console.error('헬스체크를 불러오지 못했어요', e); }
   go('home');

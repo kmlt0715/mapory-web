@@ -28,6 +28,16 @@ function initUsage() {
   box.onclick = () => C.go('backup');
   const nav = document.querySelector('nav'), sp = nav.querySelector('.spacer');
   sp.after(box);
+  // 테마 고르기
+  const th = document.createElement('div'); th.className = 'themePick'; th.setAttribute('role', 'group'); th.setAttribute('aria-label', '화면 테마');
+  const cur = localStorage.getItem('mp_theme') || 'dark';
+  th.innerHTML = [['dark', '🌙', '다크'], ['light', '☀️', '라이트'], ['space', '🪐', '우주']].map(([k, e, n]) => `<button data-th="${k}" aria-pressed="${k === cur}" title="${n} 테마">${e}<span>${n}</span></button>`).join('');
+  th.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const k = b.dataset.th; localStorage.setItem('mp_theme', k);
+    if (k === 'dark') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = k;
+    th.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  });
+  box.after(th);
   loadUsage();
   setInterval(loadUsage, 10 * 60 * 1000);
 }
@@ -90,6 +100,10 @@ function injectStyle() {
   nav { overflow-y: auto; }
   nav > * { flex-shrink: 0; }
   .usageNav { margin: 6px 6px 4px; background: var(--field); border: 0; border-radius: 12px; padding: 10px 12px; color: var(--sub); font-size: 11px; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; text-align: left; cursor: pointer; font-family: inherit; }
+  .themePick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0 6px 6px; background: var(--field); border-radius: 12px; padding: 4px; }
+  .themePick button { border: 0; background: none; color: var(--sub); border-radius: 9px; padding: 6px 0 4px; font-size: 15px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: inherit; }
+  .themePick button span { font-size: 10px; }
+  .themePick button[aria-pressed=true] { background: var(--panel); color: var(--txt); font-weight: 700; box-shadow: 0 1px 3px var(--shadow); }
   .usageNav span { grid-column: 1 / -1; font-size: 12px; color: var(--txt); }
   .usageNav .mini { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; }
   .usageNav .mini i { display: block; height: 100%; background: var(--amber); }
@@ -99,9 +113,9 @@ function injectStyle() {
   .tool { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
   .tool > .side { background: var(--panel); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
   .tool > .side h2 { font-size: 22px; margin: 0; }
-  .tool > .stage { position: relative; overflow: hidden; background: #0B1017; }
+  .tool > .stage { position: relative; overflow: hidden; background: var(--stage); }
   .side label input[type=text], .side label input[type=search], .side textarea, .side label input[type=datetime-local], .side label input[type=number] {
-    width: 100%; min-width: 0; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; font-family: inherit; color-scheme: dark; }
+    width: 100%; min-width: 0; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--txt); font-size: 14px; font-family: inherit; }
   .side textarea { height: auto; min-height: 180px; padding: 10px 12px; line-height: 1.6; resize: vertical; }
   .side select { width: 100%; }
   .pills { display: flex; gap: 6px; flex-wrap: wrap; }
