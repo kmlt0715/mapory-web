@@ -147,6 +147,55 @@
   .badge span { font-size: 11px; color: var(--sub); }
 
   /* 대시보드 */
+  nav .brand { background: none; border: 0; text-align: left; cursor: pointer; font-family: inherit; padding: 4px 12px 14px; }
+  nav .brand:hover { opacity: .85; }
+  .hero { position: relative; overflow: hidden; border-radius: 26px; padding: 30px 34px 26px; background: radial-gradient(1200px 400px at 80% -20%, #2B3B7A 0%, transparent 60%), radial-gradient(700px 300px at 0% 120%, #3A1F5C 0%, transparent 60%), #0A0F1E; }
+  .stars, .stars::after { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent), radial-gradient(1px 1px at 90px 120px, #cfe, transparent), radial-gradient(1.2px 1.2px at 160px 60px, #fff, transparent), radial-gradient(1px 1px at 230px 170px, #ffd, transparent), radial-gradient(1.4px 1.4px at 300px 40px, #fff, transparent); background-size: 340px 220px; opacity: .55; animation: twinkle 4s ease-in-out infinite alternate; }
+  .stars::after { content: ''; background-size: 270px 190px; background-position: 60px 90px; animation-delay: 2s; }
+  @keyframes twinkle { from { opacity: .25; } to { opacity: .75; } }
+  .heroTop { position: relative; display: grid; grid-template-columns: 260px 1fr; gap: 30px; align-items: center; }
+  .globe { width: 260px; height: 260px; filter: drop-shadow(0 0 30px rgba(80,150,255,.35)); }
+  .globe .lands { animation: spin 26s linear infinite; }
+  @keyframes spin { to { transform: translateX(-260px); } }
+  .lapRing { transition: stroke-dasharray 1.6s cubic-bezier(.2,.8,.2,1); }
+  .kick { font-size: 12px; letter-spacing: .3em; color: #9FB4FF; font-weight: 700; }
+  .heroBig { font-size: 54px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; margin: 6px 0 10px; }
+  .heroBig b { color: var(--amber); font-variant-numeric: tabular-nums; }
+  .heroTxt p { color: #C9D2DD; font-size: 15px; line-height: 1.6; margin: 0 0 14px; }
+  .heroTxt p b { color: #fff; }
+  .moonRow { display: flex; align-items: center; gap: 10px; }
+  .moonRow .ico { font-size: 30px; }
+  .moonRow .moon { filter: drop-shadow(0 0 12px rgba(255,255,220,.6)); }
+  .moonTrack { position: relative; flex: 1; height: 10px; border-radius: 5px; background: rgba(255,255,255,.12); }
+  .moonTrack .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px; background: linear-gradient(90deg, #7FB6F2, #F5B041); transition: width 1.6s cubic-bezier(.2,.8,.2,1); }
+  .moonTrack .rocket { position: absolute; top: 50%; left: 0; transform: translate(-50%, -55%) rotate(45deg); font-size: 22px; transition: left 1.6s cubic-bezier(.2,.8,.2,1); animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 50% { margin-top: -4px; } }
+  .solar { position: relative; height: 150px; margin: 40px 24px 0 34px; }
+  .orbitLine { position: absolute; left: 0; right: 0; top: 74px; height: 2px; background: linear-gradient(90deg, rgba(127,182,242,.7), rgba(255,183,3,.6) 55%, rgba(63,111,217,.5)); }
+  .earthStart { position: absolute; left: -30px; top: 58px; font-size: 30px; }
+  .planet { position: absolute; top: 75px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; cursor: default; }
+  .planet svg { display: block; transition: transform .2s; }
+  .planet:hover svg { transform: scale(1.18); }
+  .planet b { position: absolute; top: calc(50% + 26px); font-size: 12px; white-space: nowrap; color: #E6ECF5; }
+  .planet span { position: absolute; top: calc(50% + 42px); font-size: 10px; white-space: nowrap; color: #8E9BB0; }
+  .planet.up b { top: auto; bottom: calc(50% + 40px); }
+  .planet.up span { top: auto; bottom: calc(50% + 26px); }
+  .planet.got b { color: var(--amber); }
+  .planet.got b::before { content: '✓ '; }
+  .me { position: absolute; top: 100px; left: 0; transform: translateX(-50%); font-size: 24px; transition: left 1.8s cubic-bezier(.2,.8,.2,1); animation: bob 1.4s ease-in-out infinite; text-align: center; }
+  .me span { display: block; font-size: 10px; color: var(--amber); font-weight: 700; margin-top: -2px; }
+  .heroNext { position: relative; margin: 18px 0 0; font-size: 14px; color: #C9D2DD; }
+  .heroNext b { color: var(--amber); }
+  .funGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 14px; }
+  .fun { background: var(--panel); border-radius: 18px; padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 2px; transition: transform .15s; }
+  .fun:hover { transform: translateY(-3px); }
+  .fun .e { font-size: 34px; line-height: 1.1; margin-bottom: 6px; }
+  .fun b { font-size: 26px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+  .fun small { font-size: 13px; color: var(--sub); margin-left: 3px; }
+  .fun span { font-size: 13px; color: var(--txt); }
+  .fun em { font-style: normal; font-size: 11px; color: var(--sub); }
+  @media (max-width: 900px) { .heroTop { grid-template-columns: 1fr; justify-items: center; } .heroBig { font-size: 40px; } }
+  @media (prefers-reduced-motion: reduce) { .globe .lands, .stars, .stars::after, .rocket, .me { animation: none !important; } }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
   .tile { background: var(--panel); border-radius: 18px; padding: 16px 18px; }
   .tile span { font-size: 12px; color: var(--sub); }
@@ -242,8 +291,7 @@
 <!-- 본 화면 -->
 <div id="app" class="hidden">
   <nav aria-label="메뉴">
-    <div class="brand">Mapory<small id="dplus"></small></div>
-    <button data-page="home" aria-current="page">🏠 한눈에</button>
+    <button class="brand" id="brandHome" title="첫 화면">Mapory<small id="dplus"></small></button>
     <button data-page="map">🗺️ 지도</button>
     <button data-page="journey">🎬 여정 영상</button>
     <button data-page="compare">🪞 나란히 비교</button>
@@ -937,7 +985,7 @@ function renderHome() {
   const S = summary || {};
   const dplus = S.startTs ? Math.floor((Date.now() - S.startTs) / 864e5) + 1 : days.length;
   const diff = (a, b) => b > 0 ? (a >= b ? '▲ ' : '▼ ') + Math.round(Math.abs(a - b) / b * 100) + '% (지난달 대비)' : '';
-  let h = `<h2>한눈에 보기</h2><div class="tiles">
+  let h = spaceHero() + `<h2 style="margin-top:30px">요즘의 나</h2><div class="tiles">
     <div class="tile"><span>함께한 날</span><b class="a">D+${dplus}</b><small>기록한 날 ${days.length}일</small></div>
     <div class="tile"><span>지구에서 밝힌 곳</span><b class="a">${fmtPct(S.earthPct ?? all.area / 510072000 * 100)}</b><small>${fmtArea(S.area ?? all.area)}</small></div>
     <div class="tile"><span>이번 달 이동</span><b>${fmtDist(cur.dist)}</b><small>${diff(cur.dist, prev.dist)}</small></div>
@@ -997,8 +1045,118 @@ function renderHome() {
   const recent = [...mems].sort((a, b) => b.ts - a.ts).slice(0, 14);
   if (recent.length) h += `<section><h2 style="font-size:20px">최근 추억</h2><div class="strip">${recent.map(memCard).join('')}</div></section>`;
   $('homeBox').innerHTML = h;
+  animateHome();
   $('cal').addEventListener('click', (e) => { const i = e.target.closest('i[data-day]'); if (i && byDay[i.dataset.day]) { go('map'); setView('range', i.dataset.day, i.dataset.day); } });
   $('goCompare').onclick = () => go('compare');
+}
+
+// ───────── 첫 화면: 지구 한 바퀴 → 달 → 태양계 ─────────
+const SPACE = [
+  ['달', 384400, '#C9CDD2', 9, '가장 가까운 이웃'], ['금성', 38e6, '#E8C27A', 11, '가장 가까울 때'], ['화성', 54.6e6, '#D2553C', 10, '가장 가까울 때'],
+  ['수성', 77e6, '#A3A3A3', 8, '가장 가까울 때'], ['태양', 149.6e6, '#FFB703', 22, '1천문단위'], ['목성', 588e6, '#D9A066', 18, '가장 가까울 때'],
+  ['토성', 1.2e9, '#E3C987', 15, '가장 가까울 때'], ['천왕성', 2.6e9, '#8FD3E0', 12, '가장 가까울 때'], ['해왕성', 4.3e9, '#3F6FD9', 12, '가장 가까울 때'],
+];
+/** 앱 기록 + 구글 타임라인(앱 기록이 없는 날) 거리 합계와 최근 1년 하루 평균 */
+function allTotals() {
+  const have = new Set(days.map(d => d.day)); let walk = 0, tot = 0, plane = 0, recent = 0;
+  const since = addDays(dayOf(Date.now()), -365);
+  const add = (d) => { walk += d.dist_walk; plane += d.dist_plane; const t = total(d); tot += t; if (d.day >= since) recent += t; };
+  days.forEach(add); extra.filter(e => e.source === 'google' && !have.has(e.day)).forEach(add);
+  return { walk, tot, plane, perDay: recent / 365 };
+}
+function yearsFor(km, perDayM) { if (!(perDayM > 0)) return '∞'; const y = km * 1000 / perDayM / 365; return y < 1 ? Math.max(1, Math.round(y * 365)) + '일' : y < 1000 ? (y < 10 ? y.toFixed(1) : nf.format(Math.round(y))) + '년' : nf.format(Math.round(y)) + '년'; }
+function planetSvg(name, col, r) {
+  const id = 'pl' + name.charCodeAt(0);
+  let extra = '';
+  if (name === '토성') extra = `<ellipse cx="0" cy="0" rx="${r * 1.9}" ry="${r * 0.55}" fill="none" stroke="#C8B27A" stroke-width="2.4" transform="rotate(-18)"/>`;
+  if (name === '목성') extra = `<g clip-path="url(#c${id})" opacity=".55"><rect x="${-r}" y="${-r * 0.35}" width="${2 * r}" height="${r * 0.22}" fill="#A8693A"/><rect x="${-r}" y="${r * 0.15}" width="${2 * r}" height="${r * 0.18}" fill="#B9804F"/></g>`;
+  const glow = name === '태양' ? `<circle r="${r * 1.6}" fill="url(#g${id})" opacity=".55"/>` : '';
+  return `<svg viewBox="${-r * 2} ${-r * 2} ${r * 4} ${r * 4}" width="${r * 4}" height="${r * 4}" aria-hidden="true"><defs>
+    <radialGradient id="s${id}" cx="35%" cy="30%"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset=".35" stop-color="${col}"/><stop offset="1" stop-color="${col}" stop-opacity=".55"/></radialGradient>
+    <radialGradient id="g${id}"><stop offset=".5" stop-color="${col}"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>
+    <clipPath id="c${id}"><circle r="${r}"/></clipPath></defs>${glow}<circle r="${r}" fill="url(#s${id})"/>${extra}</svg>`;
+}
+function spaceHero() {
+  const A = allTotals(), km = A.tot / 1000, laps = km / 40075, frac = laps % 1, walkLaps = A.walk / 1000 / 40075;
+  const R = 96, C = 2 * Math.PI * R, ang = frac * 2 * Math.PI - Math.PI / 2;
+  const wx = 120 + R * Math.cos(ang), wy = 120 + R * Math.sin(ang);
+  const moonPct = Math.min(100, km / 384400 * 100);
+  // 대륙 무늬 (가로로 흘러가며 지구가 도는 것처럼)
+  const land = `<path d="M10 70 q20 -30 45 -12 t40 10 q10 25 -20 30 t-40 10 q-30 -10 -25 -38z M95 120 q25 -20 50 0 q10 30 -10 50 q-30 10 -40 -20z M150 60 q30 -20 60 0 q15 20 -5 30 q-30 10 -55 -30z M210 120 q20 -10 40 5 q5 25 -25 25 q-20 -5 -15 -30z M40 150 q20 -5 30 15 q-10 20 -30 10z"/>`;
+  const globe = `<svg viewBox="0 0 240 240" class="globe" role="img" aria-label="지구 한 바퀴 중 ${Math.round(frac * 100)}%">
+    <defs><radialGradient id="gOcean" cx="35%" cy="30%"><stop offset="0" stop-color="#7FD0FF"/><stop offset=".55" stop-color="#1E6FD9"/><stop offset="1" stop-color="#0B2E6B"/></radialGradient>
+      <radialGradient id="gShade" cx="72%" cy="72%"><stop offset=".4" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient>
+      <radialGradient id="gAtmo"><stop offset=".82" stop-color="#7FB6F2" stop-opacity=".35"/><stop offset="1" stop-color="#7FB6F2" stop-opacity="0"/></radialGradient>
+      <clipPath id="gClip"><circle cx="120" cy="120" r="74"/></clipPath></defs>
+    <circle cx="120" cy="120" r="88" fill="url(#gAtmo)"/>
+    <circle cx="120" cy="120" r="74" fill="url(#gOcean)"/>
+    <g clip-path="url(#gClip)"><g class="lands" fill="#4CB66B" opacity=".9"><g transform="translate(46 46)">${land}</g><g transform="translate(306 46)">${land}</g></g></g>
+    <circle cx="120" cy="120" r="74" fill="url(#gShade)"/>
+    <circle cx="120" cy="120" r="${R}" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6" stroke-dasharray="2 7"/>
+    <circle class="lapRing" cx="120" cy="120" r="${R}" fill="none" stroke="#F5B041" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 ${C}" data-dash="${(frac * C).toFixed(1)} ${C}" transform="rotate(-90 120 120)"/>
+    <text x="${wx}" y="${wy}" font-size="22" text-anchor="middle" dominant-baseline="central">🚶</text></svg>`;
+  // 태양계 길 (거리는 로그 눈금)
+  const lmin = Math.log10(1e4), lmax = Math.log10(4.6e9), pos = (d) => ((Math.log10(d) - lmin) / (lmax - lmin) * 100);
+  const me = Math.max(0, Math.min(100, pos(Math.max(km, 1e4))));
+  const next = SPACE.find(p => p[1] > km);
+  const planets = SPACE.map(([n, d, col, r, note], idx) => {
+    const got = km >= d, p = km / d * 100;
+    return `<div class="planet ${got ? 'got' : ''} ${idx % 2 ? 'up' : ''}" style="left:${pos(d).toFixed(2)}%" data-tip="${n} · ${note}<br>지구에서 ${fmtBig(d)}<br>지금까지 ${p < 0.001 ? p.toExponential(1) : p < 1 ? p.toFixed(3) : p.toFixed(1)}% · 지금 속도로 ${yearsFor(Math.max(0, d - km), A.perDay)} 더">
+      ${planetSvg(n, col, r)}<b>${n}</b><span>${fmtBig(d)}</span></div>`;
+  }).join('');
+  const nextTxt = next ? `다음 목적지 <b>${next[0]}</b>까지 ${fmtBig(next[1] - km)} 남았어요. 요즘 속도(하루 ${fmtDist(A.perDay)})로 약 <b>${yearsFor(next[1] - km, A.perDay)}</b>.` : '해왕성까지 다녀왔어요. 태양계 밖으로!';
+  // 재미있는 비교
+  const fun = [
+    ['🏃', A.walk / 42195, '번', '마라톤 완주', '걸은 거리로'],
+    ['🚄', A.tot / 650000, '번', '서울↔부산 왕복', '움직인 거리로'],
+    ['👟', A.walk / 600000, '켤레', '운동화를 닳게 함', '600km마다 한 켤레'],
+    ['🍜', A.walk / 1000 * 55 / 500, '그릇', '라면 칼로리만큼 걸음', '1km에 약 55kcal'],
+    ['🐢', A.tot / 1000 / 0.3 / 24 / 365, '년', '거북이라면 걸릴 시간', '시속 0.3km 거북이'],
+    ['⚡', A.tot / 1000 / 299792, '초', '빛이라면 걸릴 시간', '초속 30만km'],
+  ];
+  return `<div class="hero">
+    <div class="stars"></div>
+    <div class="heroTop">
+      <div class="globeWrap">${globe}</div>
+      <div class="heroTxt">
+        <div class="kick">MAPORY SPACE TRIP</div>
+        <div class="heroBig">지구 <b data-count="${laps}" data-dec="${laps < 10 ? 2 : 1}">0</b>바퀴</div>
+        <p>지금까지 <b data-count="${km}" data-dec="0">0</b> km를 움직였어요. 한 바퀴(40,075km) 중 이번 바퀴는 <b>${(frac * 100).toFixed(1)}%</b>, 걸어서만은 지구의 <b>${(walkLaps * 100).toFixed(walkLaps < 0.1 ? 2 : 1)}%</b>예요.</p>
+        <div class="moonRow">
+          <span class="ico">🌍</span>
+          <div class="moonTrack"><i class="fill" data-w="${Math.max(0.6, moonPct).toFixed(2)}"></i><span class="rocket" data-l="${Math.max(0.6, moonPct).toFixed(2)}">🚀</span></div>
+          <span class="ico moon">🌕</span>
+        </div>
+        <p class="muted" style="margin:6px 0 0">달까지 <b style="color:var(--txt)">${moonPct < 1 ? moonPct.toFixed(2) : moonPct.toFixed(1)}%</b> 왔어요 (384,400km)${km < 384400 ? ` · 요즘 속도로 도착까지 약 ${yearsFor(384400 - km, A.perDay)}` : ' · 달에 도착했어요!'}</p>
+      </div>
+    </div>
+    <div class="solar">
+      <div class="orbitLine"></div>
+      <div class="earthStart" title="지구">🌍</div>
+      ${planets}
+      <div class="me" data-l="${me.toFixed(2)}" title="지금 나">🚀<span>나</span></div>
+    </div>
+    <p class="heroNext">${nextTxt} <span class="muted">(거리는 한 칸마다 10배씩 커지는 눈금이에요)</span></p>
+  </div>
+  <div class="funGrid">${fun.map(([e, v, u, t, sub]) => `<div class="fun"><div class="e">${e}</div><div><b data-count="${v}" data-dec="${v < 0.1 ? 3 : v < 10 ? 1 : 0}">0</b><small>${u}</small></div><span>${t}</span><em>${sub}</em></div>`).join('')}</div>`;
+}
+function fmtBig(km) { return km >= 1e8 ? (km / 1e8).toFixed(km >= 1e9 ? 0 : 1) + '억 km' : km >= 1e4 ? nf.format(Math.round(km / 1e4)) + '만 km' : nf.format(Math.round(km)) + ' km'; }
+/** 숫자가 0부터 올라가고, 막대·로켓이 제자리로 날아가는 움직임 */
+function animateHome() {
+  const box = $('homeBox');
+  const els = box.querySelectorAll('[data-count]'), t0 = performance.now(), dur = 1400;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    els.forEach(el => { const v = +el.dataset.count * e, d = +el.dataset.dec; el.textContent = v >= 1000 ? nf.format(Math.round(v)) : v.toFixed(d); });
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    box.querySelectorAll('.lapRing').forEach(c => c.setAttribute('stroke-dasharray', c.dataset.dash));
+    box.querySelectorAll('[data-w]').forEach(el => el.style.width = el.dataset.w + '%');
+    box.querySelectorAll('[data-l]').forEach(el => el.style.left = el.dataset.l + '%');
+  }));
+  box.querySelectorAll('.planet').forEach(p => { p.onmousemove = (e) => showTip(e, p.dataset.tip); p.onmouseleave = hideTip; });
 }
 
 // ───────── 통계 ─────────
@@ -1518,6 +1676,7 @@ function go(page) {
   TOOLS[page]?.show?.();
 }
 document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
+$('brandHome').onclick = () => go('home');
 
 // ───────── 로그인 ─────────
 async function start(session) {
