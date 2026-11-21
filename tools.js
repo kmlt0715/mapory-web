@@ -964,6 +964,7 @@ function importHtml() {
     <div class="prog hidden" id="imProg"><i></i></div>
     <div id="imResult"></div>
     <h3>불러온 기록</h3><div id="imState" class="muted"></div>
+    <p class="muted" style="margin:0">지도의 <b style="color:var(--amber)">주황 점</b>(사진 위치)을 누르면 하나씩 지울 수 있어요. 내가 간 곳이 아닌 사진(받은 사진 등)을 정리할 때 쓰세요.</p>
   </div>
   <div class="stage"><div id="imMap" class="mapbox"></div></div>
 </div>`;
@@ -976,8 +977,25 @@ function initImport() {
   im.map.on('load', () => {
     im.map.addSource('imp', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     im.map.addLayer({ id: 'imp-l', type: 'line', source: 'imp', paint: { 'line-color': '#7FB6F2', 'line-width': 3 } });
-    im.map.addLayer({ id: 'imp-p', type: 'circle', source: 'imp', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#F5B041', 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } });
+    im.map.addLayer({ id: 'imp-p', type: 'circle', source: 'imp', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#F5B041', 'circle-radius': 6.5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } });
     showImportOnMap();
+    // 사진 위치 점을 누르면 하나씩 지울 수 있음
+    im.map.on('mouseenter', 'imp-p', () => { im.map.getCanvas().style.cursor = 'pointer'; });
+    im.map.on('mouseleave', 'imp-p', () => { im.map.getCanvas().style.cursor = ''; });
+    im.map.on('click', 'imp-p', (e) => {
+      const f = e.features?.[0]; if (!f || !f.properties.src || im.pending) return;
+      const { src, day, i } = f.properties;
+      // 지도에 그려진 좌표는 반올림돼 있으므로, 저장된 기록에서 원래 좌표를 다시 꺼냄
+      const row = C.extra.find(x => x.source === src && x.day === day); if (!row) return;
+      const all = row.track.split(' ').flatMap(part => C.decode(part)); if (!all[i]) return;
+      const [lat, lon] = all[i];
+      const box = document.createElement('div'); box.className = 'pop';
+      box.innerHTML = `<div class="t">${src === 'phone' ? '📱 폰 사진 위치' : '📷 사진 위치'}</div><div class="d">${C.fmtDayLabel(day)} · ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+        <p class="muted" style="margin:6px 0">내가 간 곳이 아니면(받은 사진 등) 지우세요.${src === 'phone' ? ' 다음 동기화 때 폰에서도 사라져요.' : ''}</p>
+        <button class="btn" style="height:36px;width:100%">이 위치 지우기</button>`;
+      const pop = new maplibregl.Popup({ offset: 10, maxWidth: '260px' }).setLngLat([lon, lat]).setDOMContent(box).addTo(im.map);
+      box.querySelector('button').onclick = async () => { pop.remove(); await removeExtraPoint(src, day, i); };
+    });
   });
   $('imPDir').onchange = () => { const i = $('imP'); if ($('imPDir').checked) i.setAttribute('webkitdirectory', ''); else i.removeAttribute('webkitdirectory'); };
   $('imG').onchange = () => importGoogle([...$('imG').files]);
@@ -988,28 +1006,46 @@ function renderImportState() {
   if (!im) return;
   const by = {};
   for (const e of C.extra) { by[e.source] ??= { n: 0, a: e.day, b: e.day }; const x = by[e.source]; x.n++; if (e.day < x.a) x.a = e.day; if (e.day > x.b) x.b = e.day; }
-  const name = { google: '🗺️ 구글 타임라인', photo: '📷 사진 위치' };
+  const name = { google: '🗺️ 구글 타임라인', photo: '📷 사진 위치 (홈페이지에서 불러옴)', phone: '📱 폰 사진 위치 (앱에서 올림)' };
   $('imState').innerHTML = Object.keys(by).length ? Object.entries(by).map(([k, x]) =>
     `<div class="row" style="align-items:center;margin-bottom:8px"><span>${name[k] || k} · ${x.n}일 (${x.a} ~ ${x.b})</span><button class="btn" data-del="${k}" style="height:34px">지우기</button></div>`).join('') : '아직 없어요.';
   $('imState').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     const src = b.dataset.del;
+    if (src === 'phone' && !confirm('폰에서 올린 사진 위치를 모두 지울까요? 다음 동기화 때 폰 지도에서도 사라져요.')) return;
     if (!C.DEMO) { const { error } = await C.sb.from('extra_days').delete().eq('source', src); if (error) return alertDlg(error.message); }
     C.extra = C.extra.filter(e => e.source !== src); C.refresh(); renderImportState(); showImportOnMap();
   });
 }
-function showImportOnMap(rows) {
+function showImportOnMap(rows, fit = true) {
   if (!im?.map?._ready) return;
+  const saved = !rows;
   rows ||= C.extra;
   const feats = [];
   for (const r of rows) {
     const pts = (r.track || '').split(' ').flatMap(part => C.decode(part)); if (!pts.length) continue;
-    if (pts.length === 1) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pts[0][1], pts[0][0]] } });
-    else feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts.map(p => [p[1], p[0]]) } });
+    if (pts.length > 1) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(p => [p[1], p[0]]) } });
+    // 사진 위치는 점마다 보여주고, 저장된 것은 눌러서 지울 수 있게
+    const src = r.source || im.pending?.source;
+    if (src === 'photo' || src === 'phone' || pts.length === 1)
+      pts.forEach((p, i) => feats.push({ type: 'Feature', properties: saved ? { src, day: r.day, i } : {}, geometry: { type: 'Point', coordinates: [p[1], p[0]] } }));
   }
   im.map.getSource('imp').setData({ type: 'FeatureCollection', features: feats });
   const la = [], lo = [];
   for (const f of feats) { const cs = f.geometry.type === 'Point' ? [f.geometry.coordinates] : f.geometry.coordinates; for (const c of cs) { lo.push(c[0]); la.push(c[1]); } }
-  if (la.length) im.map.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], { padding: 60, maxZoom: 14, duration: 600 });
+  if (fit && la.length) im.map.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], { padding: 60, maxZoom: 14, duration: 600 });
+}
+/** 불러온 옛 기록에서 점 하나를 지움 (그날 점이 하나도 안 남으면 그날 기록을 지움) */
+async function removeExtraPoint(src, day, idx) {
+  const row = C.extra.find(e => e.source === src && e.day === day); if (!row) return;
+  const rest = row.track.split(' ').flatMap(part => C.decode(part)).filter((p, i) => i !== idx);
+  if (!C.DEMO) {
+    const q = C.sb.from('extra_days');
+    const { error } = rest.length ? await q.update({ track: C.encodeLine(rest), updated_at: new Date().toISOString() }).eq('source', src).eq('day', day)
+      : await q.delete().eq('source', src).eq('day', day);
+    if (error) return alertDlg('지우지 못했어요: ' + error.message);
+  }
+  if (rest.length) row.track = C.encodeLine(rest); else C.extra = C.extra.filter(e => e !== row);
+  C.refresh(); renderImportState(); showImportOnMap(null, false);
 }
 /** "37.123°, 127.456°", "geo:37.1,127.4", {latitudeE7..} 등 여러 모양의 좌표를 읽음 */
 function parseLL(v) {

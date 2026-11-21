@@ -1408,7 +1408,7 @@ async function start(session) {
   if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
-  try { (await import('./tools.js?v=2')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
+  try { (await import('./tools.js?v=3')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   go('home');
 }
 
