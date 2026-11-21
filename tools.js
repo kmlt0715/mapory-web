@@ -1155,7 +1155,8 @@ function pointsToDays(pts, joinLines) {
   for (const p of pts) { const d = C.dayOf(p.t); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(p); }
   const rows = [];
   for (const [day, ps] of byDay) {
-    const parts = []; let cur = []; let walk = 0, car = 0, plane = 0, last = null;
+    const parts = []; let cur = [], curT = []; const tParts = []; let walk = 0, car = 0, plane = 0, last = null;
+    const t0 = new Date(day + 'T00:00:00').getTime();
     for (const p of ps) {
       if (last) {
         const d = distM(last.lat, last.lon, p.lat, p.lon);
@@ -1164,10 +1165,11 @@ function pointsToDays(pts, joinLines) {
         // 앱 기록처럼 끊긴 사이도 이어 붙입니다 (하루치를 시간 순서대로 한 줄로)
         if (v > 70) plane += d; else if (v > 2.8) car += d; else if (dt > 0) walk += d;
       }
-      cur.push([p.lat, p.lon]); last = p;
+      cur.push([p.lat, p.lon]); curT.push(Number.isFinite(p.t) ? Math.max(0, Math.round((p.t - t0) / 1000)) : 0); last = p;
     }
-    if (cur.length) parts.push(cur);
-    rows.push({ day, track: parts.map(C.encodeLine).join(' '), dist_walk: walk, dist_car: car, dist_plane: plane });
+    if (cur.length) { parts.push(cur); tParts.push(curT); }
+    // 시각(그날 0시부터 초)도 함께 담아 여정 영상에서 속도·이동 수단을 알 수 있게
+    rows.push({ day, track: parts.map(C.encodeLine).join(' '), times: tParts.map(C.encodeNums).join(' '), dist_walk: walk, dist_car: car, dist_plane: plane });
   }
   return rows.sort((a, b) => a.day.localeCompare(b.day));
 }
@@ -1231,13 +1233,16 @@ async function saveImport() {
     // 예전에 불러온 점과 새 점을 합쳐 한 줄로 (같은 자리는 한 번만)
     const seen = new Set(), all = [];
     for (const t of [old.track, r.track]) for (const part of t.split(' ')) for (const p of C.decode(part)) { const k = p[0].toFixed(5) + ',' + p[1].toFixed(5); if (!seen.has(k)) { seen.add(k); all.push(p); } }
-    return { ...r, track: C.encodeLine(all) };
+    return { ...r, track: C.encodeLine(all), times: '' };
   });
   $('imSave').disabled = true;
   if (!C.DEMO) {
     for (let i = 0; i < merged.length; i += 200) {
       $('imSave').textContent = `저장 중… ${Math.min(i + 200, merged.length)}/${merged.length}`;
-      const { error } = await C.sb.from('extra_days').upsert(merged.slice(i, i + 200).map(r => ({ ...r, source })), { onConflict: 'user_id,source,day' });
+      let batch = merged.slice(i, i + 200).map(r => ({ ...r, source }));
+      let { error } = await C.sb.from('extra_days').upsert(batch, { onConflict: 'user_id,source,day' });
+      // 서버에 시각(times) 칸이 아직 없으면 시각 없이 저장
+      if (error && /times/.test(error.message)) ({ error } = await C.sb.from('extra_days').upsert(batch.map(({ times, ...r }) => r), { onConflict: 'user_id,source,day' }));
       if (error) { alertDlg('저장하지 못했어요: ' + error.message); $('imSave').disabled = false; return; }
     }
   }
