@@ -1001,8 +1001,8 @@ function showImportOnMap(rows) {
   if (!im?.map?._ready) return;
   rows ||= C.extra;
   const feats = [];
-  for (const r of rows) for (const part of (r.track || '').split(' ')) {
-    const pts = C.decode(part); if (!pts.length) continue;
+  for (const r of rows) {
+    const pts = (r.track || '').split(' ').flatMap(part => C.decode(part)); if (!pts.length) continue;
     if (pts.length === 1) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pts[0][1], pts[0][0]] } });
     else feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts.map(p => [p[1], p[0]]) } });
   }
@@ -1056,7 +1056,7 @@ function googlePoints(j) {
   if (Array.isArray(j.rawSignals)) for (const r of j.rawSignals) if (r.position) add(parseLL(r.position.LatLng ?? r.position.latLng), tms(r.position.timestamp));
   return out;
 }
-/** 점들을 날짜별 길로: 크게 끊긴 곳(2km 넘게 튀거나 비행기)은 선을 잇지 않음 */
+/** 점들을 날짜별 길로: 시간 순서대로 한 줄로 잇기 */
 function pointsToDays(pts, joinLines) {
   pts.sort((a, b) => a.t - b.t);
   const byDay = new Map();
@@ -1069,9 +1069,8 @@ function pointsToDays(pts, joinLines) {
         const d = distM(last.lat, last.lon, p.lat, p.lon);
         if (d < 8) continue;
         const dt = (p.t - last.t) / 1000, v = dt > 0 ? d / dt : Infinity;
-        const brk = !joinLines || v > 70 || (d > 2000 && dt > 1200) || (d > 2000 && !(dt > 0));
+        // 앱 기록처럼 끊긴 사이도 이어 붙입니다 (하루치를 시간 순서대로 한 줄로)
         if (v > 70) plane += d; else if (v > 2.8) car += d; else if (dt > 0) walk += d;
-        if (brk) { if (cur.length) parts.push(cur); cur = []; }
       }
       cur.push([p.lat, p.lon]); last = p;
     }
@@ -1137,8 +1136,10 @@ async function saveImport() {
   const merged = rows.map(r => {
     const old = C.extra.find(e => e.source === source && e.day === r.day);
     if (!old || source !== 'photo') return r;
-    const parts = new Set([...old.track.split(' '), ...r.track.split(' ')].filter(Boolean));
-    return { ...r, track: [...parts].join(' ') };
+    // 예전에 불러온 점과 새 점을 합쳐 한 줄로 (같은 자리는 한 번만)
+    const seen = new Set(), all = [];
+    for (const t of [old.track, r.track]) for (const part of t.split(' ')) for (const p of C.decode(part)) { const k = p[0].toFixed(5) + ',' + p[1].toFixed(5); if (!seen.has(k)) { seen.add(k); all.push(p); } }
+    return { ...r, track: C.encodeLine(all) };
   });
   $('imSave').disabled = true;
   if (!C.DEMO) {

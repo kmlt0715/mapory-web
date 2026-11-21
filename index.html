@@ -500,10 +500,16 @@ async function loadData() {
   if (DEMO) return;
   await signPhotos();
 }
+function joinTrack(track) {
+  const pts = []; for (const part of track.split(' ')) for (const p of decode(part)) pts.push(p);
+  return pts.length ? encodeLine(pts) : '';
+}
 /** 앱 기록 + 불러온 옛 기록(구글 타임라인·사진)을 지도에 그릴 길 조각으로 */
 function buildSegs() {
   segs = [];
-  for (const d of [...days, ...extra]) {
+  // 불러온 옛 기록(구글·사진)은 띄엄띄엄 있어도 하루치를 시간 순서대로 한 줄로 잇습니다.
+  const joined = extra.map(e => ({ ...e, track: e.track ? joinTrack(e.track) : '' }));
+  for (const d of [...days, ...joined]) {
     if (!d.track) continue;
     for (const part of d.track.split(' ')) {
       const pts = decode(part); if (!pts.length) continue;
@@ -1059,11 +1065,13 @@ function buildPath(from, to) {
       pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); last = p;
     });
   }
+  // 날짜변경선을 넘어도 선이 짧은 쪽으로 이어지도록 경도를 이어 붙임
+  for (let i = 1; i < pts.length; i++) pts[i] = [pts[i - 1][0] + lonDiff(pts[i - 1][0], pts[i][0]), pts[i][1]];
   const n = pts.length, W = new Float64Array(n), D = new Float64Array(n);
   const FAR = 15000;                                 // 15km 넘는 이동은 '장거리'
   for (let i = 1; i < n; i++) {
     const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]);
-    D[i] = D[i - 1] + (gap[i] ? 0 : d);
+    D[i] = D[i - 1] + d;
     let w = d;
     if (jcfg.fast && d > FAR) w = FAR * (1 + Math.log(d / FAR));
     if (gap[i]) w = Math.min(w, FAR * (1 + Math.log(Math.max(1, d / FAR))));   // 기록이 끊긴 사이는 길게 끌지 않음
@@ -1101,16 +1109,34 @@ function buildPath(from, to) {
   return { pts, day, gap, W, D, n, bounds, hop, zoneOf, zones };
 }
 
-/** k0~k1 점을 선으로 (기록이 끊긴 곳에서는 나눔). tail이 있으면 끝에 이어 붙임 */
+/** 지구 위 두 점 사이 가장 짧은 길(대권) 위의 한 점. f=0이면 a, 1이면 b */
+function gcPoint(a, b, f) {
+  const r = Math.PI / 180;
+  const v = (p) => [Math.cos(p[1] * r) * Math.cos(p[0] * r), Math.cos(p[1] * r) * Math.sin(p[0] * r), Math.sin(p[1] * r)];
+  const A = v(a), B = v(b), w = Math.acos(Math.max(-1, Math.min(1, A[0] * B[0] + A[1] * B[1] + A[2] * B[2])));
+  if (w < 1e-7) return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  const s = Math.sin(w), k1 = Math.sin((1 - f) * w) / s, k2 = Math.sin(f * w) / s;
+  const x = k1 * A[0] + k2 * B[0], y = k1 * A[1] + k2 * B[1], z = k1 * A[2] + k2 * B[2];
+  let lon = Math.atan2(y, x) / r; const lat = Math.atan2(z, Math.hypot(x, y)) / r;
+  const ref = a[0] + (b[0] - a[0]) * f; lon += 360 * Math.round((ref - lon) / 360);
+  return [lon, lat];
+}
+/** a→b 사이(먼 거리일 때)의 곡선 중간점들. upto까지만 */
+function gcFill(a, b, upto = 1) {
+  const d = distM(a[1], a[0], b[1], b[0]); if (d < 100000) return [];
+  const m = Math.min(96, Math.ceil(d / 60000)), out = [];
+  for (let j = 1; j < m && j / m < upto; j++) out.push(gcPoint(a, b, j / m));
+  return out;
+}
+/** k0~k1 점을 한 줄로 (기록이 끊긴 사이도 이어 그림, 먼 이동은 곡선). tail이 있으면 끝에 이어 붙임 */
 function lines(P, k0, k1, tail) {
-  const out = []; let cur = [];
+  const cur = [];
   for (let k = Math.max(0, k0); k <= k1; k++) {
-    if (P.gap[k] && cur.length) { if (cur.length > 1) out.push(cur); cur = []; }
+    if (k > Math.max(0, k0) && P.hop[k]) cur.push(...gcFill(P.pts[k - 1], P.pts[k]));
     cur.push(P.pts[k]);
   }
-  if (tail) cur.push(tail);
-  if (cur.length > 1) out.push(cur);
-  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: out } };
+  if (tail) cur.push(...tail);
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: cur.length > 1 ? [cur] : [] } };
 }
 const pointF = (p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } });
 
@@ -1133,6 +1159,10 @@ function initJourney() {
     jmap.addLayer({ id: 'j-new', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 5.5 } });
     jmap.addLayer({ id: 'j-halo', type: 'circle', source: 'j-head', paint: { 'circle-radius': 17, 'circle-color': col, 'circle-opacity': 0.35, 'circle-blur': 0.5 } });
     jmap.addLayer({ id: 'j-head', type: 'circle', source: 'j-head', paint: { 'circle-radius': 7, 'circle-color': '#111', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
+    // 재생 중에는 점을 선과 같은 묶음에 넣어 함께 그려지게 함 (빨리 날아갈 때 점과 선이 벌어지지 않도록)
+    const PT = ['==', ['geometry-type'], 'Point'];
+    jmap.addLayer({ id: 'j-halo2', type: 'circle', source: 'j-new', filter: PT, paint: { 'circle-radius': 17, 'circle-color': col, 'circle-opacity': 0.35, 'circle-blur': 0.5 } });
+    jmap.addLayer({ id: 'j-head2', type: 'circle', source: 'j-new', filter: PT, paint: { 'circle-radius': 7, 'circle-color': '#111', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
     jSetProjection();
     jPreview(true);
   });
@@ -1173,7 +1203,7 @@ function jColor() {
   if (!jmap?._ready) return;
   const col = JCOL[jcfg.col][1];
   for (const id of ['j-old', 'j-glow', 'j-new']) jmap.setPaintProperty(id, 'line-color', col);
-  jmap.setPaintProperty('j-halo', 'circle-color', col);
+  jmap.setPaintProperty('j-halo', 'circle-color', col); jmap.setPaintProperty('j-halo2', 'circle-color', col);
 }
 function jSetProjection() {
   if (!jmap?._ready) return;
@@ -1219,7 +1249,7 @@ function jStart(record) {
   const z0 = camZoom(P, 0), c0 = jcfg.cam === 'auto' ? [...P.zones[0].c] : [...P.pts[0]];
   J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: z0, hopStart: z0, cam: c0, endAt: 0 };
   jmap.getSource('j-old').setData(EMPTY);
-  jmap.getSource('j-new').setData(EMPTY);
+  jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(EMPTY);
   $('jPanel').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
   if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom });
   if (record) recStart();
@@ -1238,13 +1268,13 @@ function jTick(now) {
   const sstep = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   const isHop = P.hop && P.hop[i] > 0;
   const g = isHop ? sstep((f - 0.25) / 0.5) : f;
-  const head = [lonWrap(a[0] + lonDiff(a[0], b[0]) * g), a[1] + (b[1] - a[1]) * g];
+  const head = isHop ? gcPoint(a, b, g) : [a[0] + (b[0] - a[0]) * g, a[1] + (b[1] - a[1]) * g];
+  const tail = isHop ? [...gcFill(a, b, g), head] : [head];
   // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
   const RECENT = 400, cutAt = Math.max(0, i - RECENT);
   if (cutAt - J.oldUpto > 60 || (cutAt > 0 && J.oldUpto < 0)) { jmap.getSource('j-old').setData(lines(P, 0, cutAt)); J.oldUpto = cutAt; }
-  jmap.getSource('j-new').setData(lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, P.gap[i] ? null : head));
-  jmap.getSource('j-head').setData(pointF(head));
-  const km = P.D[i - 1] + (P.gap[i] ? 0 : (P.D[i] - P.D[i - 1]) * f);
+  jmap.getSource('j-new').setData({ type: 'FeatureCollection', features: [lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, tail), pointF(head)] });
+  const km = P.D[i - 1] + (P.D[i] - P.D[i - 1]) * g;
   const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2);
   $('jProg').style.width = (J.t / jcfg.dur * 100).toFixed(2) + '%';
   // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
@@ -1288,7 +1318,7 @@ function jTick(now) {
   }
   J.prevHead = head;
   if (J.t >= jcfg.dur) {
-    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jFit(P, 1200); }
+    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(pointF(P.pts[P.n - 1])); jFit(P, 1200); }
     if (now - J.endAt > 2500) { jEnd(false); return; }
   }
   jmap.triggerRepaint();
@@ -1378,7 +1408,7 @@ async function start(session) {
   if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
-  try { (await import('./tools.js?v=1')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
+  try { (await import('./tools.js?v=2')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   go('home');
 }
 
