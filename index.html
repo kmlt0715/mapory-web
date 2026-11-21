@@ -378,7 +378,7 @@ const FOGS = [['흰 안개', '#F4F6F8'], ['밤 안개', '#25303E'], ['새벽 보
 const ICON_NAMES = { '✈️':'여행','🍽️':'음식','☕':'카페','🍺':'술자리','🍰':'디저트','🛍️':'쇼핑','🏠':'집','💼':'일','📚':'공부','🏃':'운동','⛰️':'산','🌊':'바다','🏕️':'캠핑','🌸':'산책','🚗':'드라이브','🎬':'영화','🎵':'공연','🎮':'놀이','📷':'사진','❤️':'데이트','👪':'가족','👫':'친구','🐶':'반려동물','🎂':'기념일','🏨':'숙소','⛳':'골프','🏥':'병원','⛪':'명소','⭐':'특별' };
 const DOW = '일월화수목금토';
 
-let uid = null, days = [], mems = [], summary = null;
+let uid = null, days = [], mems = [], summary = null, extra = [], hasWebCols = false, hasExtra = false;
 let segs = [];          // 길 구간: { day, mx, my, ll: [[lon,lat]...] }
 let photoUrl = {};
 let view = { mode: 'all', from: null, to: null };
@@ -484,26 +484,37 @@ async function loadData() {
       { id: 4, ts: now - 90 * 864e5, lat: 33.5050, lon: 126.5400, title: '제주 여행', body: '', icon: '✈️', photos: [] },
     ];
     summary = demoSummary(now);
+    hasWebCols = hasExtra = true;
   } else {
-    [days, mems] = await Promise.all([
-      fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'),
-      fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'),
-    ]);
+    days = await fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day');
+    // 홈페이지에서 지운 추억(앱이 아직 못 받아 간 것)은 빼고 보여줍니다. 추가 SQL 전이면 예전 방식으로 읽습니다.
+    try { mems = (await fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos,web_deleted', 'ts')).filter(m => !m.web_deleted); hasWebCols = true; }
+    catch (e) { mems = await fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'); hasWebCols = false; }
+    try { extra = await fetchAll('extra_days', 'source,day,track,dist_walk,dist_car,dist_plane', 'day'); hasExtra = true; }
+    catch (e) { extra = []; hasExtra = false; }
     const s = await sb.from('summary').select('data,updated_at').maybeSingle();
     summary = s.data?.data ?? null;
   }
+  buildSegs();
+  photoUrl = {};
+  if (DEMO) return;
+  await signPhotos();
+}
+/** 앱 기록 + 불러온 옛 기록(구글 타임라인·사진)을 지도에 그릴 길 조각으로 */
+function buildSegs() {
   segs = [];
-  for (const d of days) {
+  for (const d of [...days, ...extra]) {
     if (!d.track) continue;
     for (const part of d.track.split(' ')) {
       const pts = decode(part); if (!pts.length) continue;
       const mx = new Float64Array(pts.length), my = new Float64Array(pts.length);
       pts.forEach((p, k) => { mx[k] = mercX(p[1]); my[k] = mercY(p[0]); });
-      segs.push({ day: d.day, mx, my, ll: pts.map(p => [p[1], p[0]]) });
+      segs.push({ day: d.day, mx, my, ll: pts.map(p => [p[1], p[0]]), src: d.source || 'app' });
     }
   }
-  photoUrl = {};
-  if (DEMO) return;
+  segs.sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+}
+async function signPhotos() {
   // 사진 임시 주소 (1시간 유효). 비공개 보관함이라 로그인한 본인에게만 발급됩니다.
   const paths = [...new Set(mems.flatMap(m => (m.photos || []).map(p => `${uid}/${p.replace(/^v:/, '')}`)))];
   for (let i = 0; i < paths.length; i += 100) {
@@ -1330,6 +1341,18 @@ function jRecFrame() {
   c.fillStyle = '#555'; c.font = `500 ${14 * s}px Pretendard, sans-serif`; c.fillText(t2, rc.width / 2, by + 60 * s);
 }
 
+// ───────── 새 도구(tools.js)가 쓰는 공용 창구 ─────────
+const TOOLS = {};
+const CTX = {
+  sb, $, esc, nf, fmtDist, fmtArea, fmtDate, fmtDayLabel, dayOf, addDays, decode, encodeLine, mercX, mercY, STYLE, ICON_NAMES, DOW, DEMO,
+  makeMap, Fog, boundsOf, pUrl, firstPhoto, openMemory, fetchAll, go, TOOLS, total,
+  get uid() { return uid; }, get days() { return days; }, get mems() { return mems; }, set mems(v) { mems = v; },
+  get segs() { return segs; }, get summary() { return summary; }, get extra() { return extra; }, set extra(v) { extra = v; },
+  get hasWebCols() { return hasWebCols; }, get hasExtra() { return hasExtra; },
+  /** 기록이 바뀐 뒤 다른 화면들을 다시 그림 */
+  refresh() { buildSegs(); renderHome(); renderAlbum(); if (map) { drawPins(); fog.draw(); } },
+};
+
 // ───────── 화면 전환 ─────────
 function go(page) {
   document.querySelectorAll('nav button[data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
@@ -1339,6 +1362,7 @@ function go(page) {
   if (page === 'map') { if (!map) { initMap(); setView('all', null, null, false); } else { map.resize(); fog.draw(); } }
   if (page === 'journey') { if (!jmap) initJourney(); else jmap.resize(); }
   if (page === 'compare') { if (!cmp) initCompare(); else { cmp.A.map.resize(); cmp.B.map.resize(); applyCompare(); } }
+  TOOLS[page]?.show?.();
 }
 document.querySelectorAll('nav button[data-page]').forEach(b => b.onclick = () => go(b.dataset.page));
 
@@ -1354,6 +1378,7 @@ async function start(session) {
   if (summary?.startTs) $('dplus').textContent = `함께한 지 D+${Math.floor((Date.now() - summary.startTs) / 864e5) + 1}`;
   buildFogPick();
   renderHome(); renderStats(); renderAlbum(); renderDays();
+  try { (await import('./tools.js?v=1')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   go('home');
 }
 
