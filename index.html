@@ -199,6 +199,24 @@
   .fun em { font-style: normal; font-size: 11px; color: var(--sub); }
   @media (max-width: 900px) { .heroTop { grid-template-columns: 1fr; justify-items: center; } .heroBig { font-size: 40px; } }
   @media (prefers-reduced-motion: reduce) { .globe .lands, .stars, .stars::after, .rocket, .me { animation: none !important; } }
+  #healthBox { display: flex; flex-direction: column; gap: 14px; }
+  .hHead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .hHead h2 { margin: 0; }
+  .hTop { display: grid; grid-template-columns: 1.15fr 1fr 1.1fr; gap: 14px; }
+  .hToday { flex-direction: row; align-items: center; gap: 18px; }
+  .hToday > div { display: flex; flex-direction: column; gap: 6px; }
+  .lvBar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; font-size: 10px; text-align: center; }
+  .lvBar span { background: var(--grid); border-radius: 6px; padding: 6px 2px; color: var(--sub); }
+  .hNums { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .hNums div { display: flex; flex-direction: column; } .hNums span { font-size: 12px; color: var(--sub); } .hNums b { font-size: 18px; } .hNums small { font-size: 11px; color: var(--sub); }
+  #healthBox .months { gap: 4px; } #healthBox .months .m span { font-size: 10px; white-space: nowrap; } #healthBox .months .m b { font-size: 9px; }
+  .hMid { display: grid; grid-template-columns: 1.5fr 1fr 1.1fr; gap: 14px; }
+  .hBars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 170px; }
+  .hb { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+  .hb i { display: block; width: 100%; border-radius: 3px 3px 0 0; min-height: 0; }
+  .goalLine { position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgba(255,255,255,.35); pointer-events: none; }
+  .goalLine span { position: absolute; right: 0; top: -16px; font-size: 10px; color: var(--sub); }
+  @media (max-width: 1100px) { .hTop, .hMid { grid-template-columns: 1fr; } }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
   .tile { background: var(--panel); border-radius: 18px; padding: 16px 18px; }
   .tile span { font-size: 12px; color: var(--sub); }
@@ -300,7 +318,7 @@
     <button data-page="compare">🪞 나란히 비교</button>
     <button data-page="stats">📊 통계</button>
     <button data-page="album">📔 추억 앨범</button>
-    <button data-page="days">📅 하루 기록</button>
+    <button data-page="days">🩺 헬스체크</button>
     <div class="spacer"></div>
     <div class="who" id="who"></div>
     <button id="logout">로그아웃</button>
@@ -408,14 +426,7 @@
     </div></div>
 
     <!-- 하루 기록 -->
-    <div class="page hidden" id="page-days"><div class="scroll">
-      <h2>하루 기록</h2>
-      <p class="muted">날짜를 누르면 지도에서 그날 다닌 길을 보여줘요.</p>
-      <table>
-        <thead><tr><th>날짜</th><th>이동</th><th>걷기</th><th>차</th><th>새로 밝힘</th><th>걸음</th></tr></thead>
-        <tbody id="dayRows"></tbody>
-      </table>
-    </div></div>
+    <div class="page hidden" id="page-days"><div class="scroll" id="healthBox"></div></div>
   </main>
 </div>
 
@@ -1248,11 +1259,82 @@ function openMemory(id) {
 $('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').close(); });
 
 // ───────── 하루 기록 ─────────
+// ───────── 헬스체크: 걸음·걷기 거리로 보는 활동 건강 ─────────
+const STEP_GOAL = () => +(localStorage.getItem('mp_goal') || 10000);
+/** 하루 걸음으로 보는 활동 단계 (Tudor-Locke 기준) */
+function stepLevel(v) {
+  if (v < 5000) return ['앉아 있는 편', '#E5533D', 0];
+  if (v < 7500) return ['조금 활동적', '#F59E0B', 1];
+  if (v < 10000) return ['꽤 활동적', '#F5B041', 2];
+  if (v < 12500) return ['활동적', '#4CB66B', 3];
+  return ['매우 활동적', '#2E9E5B', 4];
+}
 function renderDays() {
-  const rows = [...days].sort((a, b) => b.day.localeCompare(a.day));
-  $('dayRows').innerHTML = rows.map(d => `<tr data-day="${d.day}"><td><button>${fmtDayLabel(d.day)}</button></td><td>${fmtDist(total(d))}</td><td>${fmtDist(d.dist_walk)}</td><td>${fmtDist(d.dist_car)}</td><td>${fmtArea(d.area_km2)}</td><td>${d.steps ? nf.format(d.steps) : '-'}</td></tr>`).join('') ||
-    `<tr><td colspan="6" class="muted">아직 올라온 기록이 없어요.</td></tr>`;
-  $('dayRows').querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = () => { go('map'); setView('range', tr.dataset.day, tr.dataset.day); });
+  const box = $('healthBox'); if (!box) return;
+  const goal = STEP_GOAL(), today = dayOf(Date.now());
+  const byDay = new Map(days.map(d => [d.day, d]));
+  const withSteps = days.filter(d => d.steps > 0);
+  const range = (n) => { const out = []; for (let k = n - 1; k >= 0; k--) { const d = addDays(today, -k); out.push([d, byDay.get(d)]); } return out; };
+  const avg = (arr, f) => { const v = arr.map(f).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
+  const last7 = range(7), prev7 = range(14).slice(0, 7), last30 = range(30);
+  const a7 = avg(last7, x => x[1]?.steps || 0), p7 = avg(prev7, x => x[1]?.steps || 0), a30 = avg(last30, x => x[1]?.steps || 0);
+  const tdy = byDay.get(today)?.steps || 0, yst = byDay.get(addDays(today, -1))?.steps || 0;
+  const goalDays30 = last30.filter(x => (x[1]?.steps || 0) >= goal).length;
+  // 목표 달성 연속 (오늘은 아직 진행 중이라 어제부터 셈)
+  let streak = 0; for (let k = tdy >= goal ? 0 : 1; ; k++) { if ((byDay.get(addDays(today, -k))?.steps || 0) >= goal) streak++; else break; }
+  let best = 0, run = 0, prev = null;
+  for (const d of [...withSteps].sort((a, b) => a.day.localeCompare(b.day))) { if (d.steps >= goal) { run = prev && addDays(prev, 1) === d.day ? run + 1 : 1; best = Math.max(best, run); prev = d.day; } else { run = 0; prev = null; } }
+  const bestDay = withSteps.reduce((m, d) => !m || d.steps > m.steps ? d : m, null);
+  const walk30 = last30.reduce((s, x) => s + (x[1]?.dist_walk || 0), 0);
+  const [lvName, lvCol, lvIdx] = stepLevel(a7);
+  // 오늘 고리
+  const pct = Math.min(1, tdy / goal), R = 64, Cc = 2 * Math.PI * R;
+  const ring = `<svg viewBox="0 0 160 160" width="170" height="170" role="img" aria-label="오늘 걸음 ${nf.format(tdy)}보, 목표의 ${Math.round(pct * 100)}%">
+    <circle cx="80" cy="80" r="${R}" fill="none" stroke="var(--grid)" stroke-width="14"/>
+    <circle cx="80" cy="80" r="${R}" fill="none" stroke="${tdy >= goal ? '#4CB66B' : 'var(--amber)'}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(pct * Cc).toFixed(1)} ${Cc}" transform="rotate(-90 80 80)"/>
+    <text x="80" y="76" text-anchor="middle" font-size="26" font-weight="800" fill="var(--txt)">${nf.format(tdy)}</text>
+    <text x="80" y="100" text-anchor="middle" font-size="12" fill="var(--sub)">/ ${nf.format(goal)}보</text></svg>`;
+  // 30일 막대 (목표선)
+  const mx30 = Math.max(goal * 1.2, ...last30.map(x => x[1]?.steps || 0));
+  const bars = last30.map(([d, r]) => { const v = r?.steps || 0; return `<div class="hb" data-tip="${fmtDayLabel(d)}<br>${v ? nf.format(v) + '보' : '기록 없음'}${r ? ' · 걷기 ' + fmtDist(r.dist_walk) : ''}"><i style="height:${(v / mx30 * 100).toFixed(1)}%;background:${v >= goal ? '#4CB66B' : v ? 'var(--amber)' : 'transparent'}"></i></div>`; }).join('');
+  // 요일별 평균
+  const wk = Array.from({ length: 7 }, () => []); for (const d of withSteps) wk[new Date(d.day + 'T00:00:00').getDay()].push(d.steps);
+  const wAvg = wk.map(a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0), wMax = Math.max(1, ...wAvg);
+  const bestW = wAvg.indexOf(Math.max(...wAvg)), worstW = wAvg.indexOf(Math.min(...wAvg.filter(v => v > 0).concat([Infinity])));
+  // 최근 12개월 하루 평균
+  const now = new Date(); const months = [];
+  for (let k = 11; k >= 0; k--) { const a = new Date(now.getFullYear(), now.getMonth() - k, 1); const key = dayOf(a.getTime()).slice(0, 7); const ds = withSteps.filter(d => d.day.startsWith(key)); months.push([a.getMonth() + 1, ds.length ? ds.reduce((x, d) => x + d.steps, 0) / ds.length : 0]); }
+  const mMax = Math.max(1, ...months.map(m => m[1]));
+  const trend = a7 && p7 ? Math.round((a7 - p7) / p7 * 100) : null;
+  const lvl = ['앉아 있는 편', '조금 활동적', '꽤 활동적', '활동적', '매우 활동적'];
+  box.innerHTML = `<div class="hHead"><h2>🩺 헬스체크</h2><span class="muted">폰의 걸음 수(헬스 커넥트)와 걸은 거리로 보는 활동 건강</span>
+    <label class="muted" style="margin-left:auto;display:flex;align-items:center;gap:8px">하루 목표 <select id="hGoal">${[6000, 7500, 8000, 10000, 12000, 15000].map(g => `<option value="${g}" ${g === goal ? 'selected' : ''}>${nf.format(g)}보</option>`).join('')}</select></label></div>
+  ${withSteps.length ? '' : '<div class="note warn">아직 걸음 기록이 없어요. 폰 앱에서 헬스 커넥트 걸음 권한을 허용하고 동기화하면 채워져요.</div>'}
+  <div class="hTop">
+    <div class="card hToday">${ring}<div><span class="muted">오늘</span><b style="font-size:22px">${tdy >= goal ? '목표 달성! 🎉' : nf.format(Math.max(0, goal - tdy)) + '보 남았어요'}</b>
+      <span class="muted">어제 ${nf.format(yst)}보 · 연속 달성 <b style="color:var(--amber)">${streak}일</b> (최고 ${best}일)</span></div></div>
+    <div class="card"><span class="muted">요즘 활동 단계 (최근 7일 평균)</span><b style="font-size:26px;color:${lvCol}">${lvName}</b>
+      <div class="lvBar">${lvl.map((n, i) => `<span style="${i === lvIdx ? `background:${lvCol};color:#111;font-weight:700` : ''}">${n}</span>`).join('')}</div>
+      <span class="muted">하루 평균 ${nf.format(Math.round(a7))}보${trend != null ? ` · 지난주보다 ${trend >= 0 ? '▲' : '▼'} ${Math.abs(trend)}%` : ''}</span></div>
+    <div class="card hNums">
+      <div><span>30일 목표 달성</span><b>${goalDays30} / 30일</b></div>
+      <div><span>30일 하루 평균</span><b>${nf.format(Math.round(a30))}보</b></div>
+      <div><span>30일 걸은 거리</span><b>${fmtDist(walk30)}</b></div>
+      <div><span>걷기로 쓴 열량 (어림)</span><b>${nf.format(Math.round(walk30 / 1000 * 55))} kcal</b></div>
+      <div><span>최고 기록</span><b>${bestDay ? nf.format(bestDay.steps) + '보' : '-'}</b><small>${bestDay ? fmtDayLabel(bestDay.day) : ''}</small></div>
+    </div>
+  </div>
+  <div class="hMid">
+    <div class="card"><div class="row"><h3>최근 30일 걸음</h3><span class="legend"><i style="background:#4CB66B"></i>목표 달성 <i style="background:var(--amber)"></i>미달</span></div>
+      <div class="hBars"><div class="goalLine" style="bottom:${(goal / mx30 * 100).toFixed(1)}%"><span>${nf.format(goal)}</span></div>${bars}</div>
+      <div class="row muted" style="font-size:11px"><span>${fmtDayLabel(last30[0][0])}</span><span>오늘</span></div></div>
+    <div class="card"><h3>요일별 하루 평균</h3>
+      ${[1, 2, 3, 4, 5, 6, 0].map(w => `<div class="row" style="font-size:13px"><span style="width:20px">${DOW[w]}</span><div class="bar" style="flex:1;margin:0 10px;align-self:center"><i style="width:${(wAvg[w] / wMax * 100).toFixed(1)}%"></i></div><span class="v" style="width:70px;text-align:right">${wAvg[w] ? nf.format(Math.round(wAvg[w])) : '-'}</span></div>`).join('')}
+      <span class="muted">${wAvg[bestW] ? `가장 많이 걷는 요일 <b style="color:var(--txt)">${DOW[bestW]}요일</b>` : ''}${worstW >= 0 && worstW < 7 && worstW !== bestW ? ` · 가장 적게 걷는 요일 ${DOW[worstW]}요일` : ''}</span></div>
+    <div class="card"><h3>달마다 하루 평균</h3><div class="months" style="height:150px">${months.map(([m, v]) => `<div class="m" data-tip="${m}월 하루 평균<br>${v ? nf.format(Math.round(v)) + '보' : '기록 없음'}"><b>${v ? (v / 1000).toFixed(1) + 'k' : ''}</b><i style="height:${(v / mMax * 100).toFixed(1)}px;${v >= goal ? 'background:#4CB66B' : ''}"></i><span>${m}월</span></div>`).join('')}</div></div>
+  </div>`;
+  $('hGoal').onchange = () => { localStorage.setItem('mp_goal', $('hGoal').value); renderDays(); };
+  box.querySelectorAll('[data-tip]').forEach(el => { el.onmousemove = (e) => showTip(e, el.dataset.tip); el.onmouseleave = hideTip; });
 }
 
 // ───────── 여정 영상: 점이 이동 기록을 따라 움직이며 선을 그림 ─────────
