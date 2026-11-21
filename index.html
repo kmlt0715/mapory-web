@@ -281,6 +281,7 @@
           <button class="btn" id="bPhoto" aria-pressed="false">📷 사진 지도</button>
         </div>
         <p class="muted hidden" id="photoNote" style="margin:0">사진이 있는 추억이 아직 없어요. 앱에서 사진을 넣은 추억이 동기화되면 지도 위에 사진이 떠요.</p>
+        <label class="chk" style="font-size:13px;min-height:30px"><input type="checkbox" id="showPins"> 추억 아이콘 보이기</label>
         <div class="fogPick" id="fogPick" aria-label="안개 색">안개</div>
       </div>
       <div class="float hidden" id="globeHint">마우스로 끌어 지구를 돌려 보세요. 다닌 길이 노랗게 빛나요. 확대하면 지도 위에서 자세히 볼 수 있어요.</div>
@@ -703,8 +704,10 @@ function pinFor(m) {
   el.setAttribute('aria-label', '추억: ' + (m.title || '제목 없음'));
   return el;
 }
+let showPins = localStorage.getItem('mp_pins') !== '0';
 function drawPins() {
   markers.forEach(m => m.remove()); markers = [];
+  if (!showPins && !photoMode) return;   // 추억 아이콘 숨김 (사진 지도를 켜면 사진은 보여줌)
   const show = tl ? (d) => d <= tl.days[tl.i] : inView;
   for (const m of mems) {
     if (!show(dayOf(m.ts))) continue;
@@ -747,6 +750,8 @@ function buildFogPick() {
 }
 const allFogs = () => [fog, cmp?.A.fog, cmp?.B.fog].filter(Boolean);
 
+$('showPins').checked = showPins;
+$('showPins').onchange = () => { showPins = $('showPins').checked; localStorage.setItem('mp_pins', showPins ? '1' : '0'); drawPins(); };
 $('bPhoto').onclick = () => {
   photoMode = !photoMode;
   $('bPhoto').setAttribute('aria-pressed', photoMode); $('bPhoto').classList.toggle('on', photoMode);
