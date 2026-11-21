@@ -282,22 +282,42 @@ async function show() {
   render(cache.G);
 }
 
+// 화면 상태: 고른 탭, 나라, 시·도, 배지 섹션
+const UI = { tab: 'sum', country: null, sido: null, bsec: 0 };
+const TABS = [['sum', '📊 요약'], ['year', '🗓️ 해마다'], ['world', '🌍 나라'], ['kr', '🇰🇷 대한민국'], ['badge', '🏅 배지'], ['place', '📍 자주 가는 곳']];
+
 function render(G) {
   const N = numbers(G), S = C.summary || {};
-  const fd = (d) => d.replaceAll('-', '.');
-  const pct = (v, g) => Math.max(0, Math.min(1, v / g));
-  let h = `<h2>나의 기록 <span class="muted" style="font-size:15px">앱 GPS · 구글 타임라인 · 사진 위치 · 추억을 모두 합쳤어요</span></h2>`;
-  // 큰 숫자
-  h += `<div class="tiles">
+  const secs = badgeSections(N), allB = secs.flatMap(s => s.items), gotN = allB.filter(b => b.v >= b.goal).length;
+  const box = $('statsBox');
+  box.classList.add('stWrap');
+  box.innerHTML = `<div class="stHead"><h2>나의 기록</h2><span class="muted">앱 GPS · 구글 타임라인 · 사진 위치 · 추억을 모두 합쳤어요</span></div>
+    <div class="stTabs" role="tablist">${TABS.map(([k, t]) => `<button role="tab" data-t="${k}" aria-selected="${UI.tab === k}">${t}${k === 'badge' ? ` <small>${gotN}/${allB.length}</small>` : k === 'world' ? ` <small>${N.countries}</small>` : k === 'kr' ? ` <small>${N.towns}</small>` : ''}</button>`).join('')}</div>
+    <div class="stBody" id="stBody"></div>`;
+  box.querySelectorAll('.stTabs button').forEach(b => b.onclick = () => { UI.tab = b.dataset.t; box.querySelectorAll('.stTabs button').forEach(x => x.setAttribute('aria-selected', x === b)); paint(); });
+  const paint = () => {
+    const el = $('stBody');
+    el.innerHTML = ({ sum: tabSum, year: tabYear, world: tabWorld, kr: tabKr, badge: tabBadge, place: tabPlace })[UI.tab](G, N, S, secs, gotN, allB.length);
+    el.querySelectorAll('[data-pick]').forEach(x => x.onclick = () => { const [k, v] = x.dataset.pick.split('|'); UI[k] = k === 'bsec' ? +v : v; paint(); });
+    el.querySelectorAll('[data-tab]').forEach(x => x.onclick = () => box.querySelector(`.stTabs button[data-t="${x.dataset.tab}"]`).click());
+  };
+  paint();
+}
+const fd = (d) => d.replaceAll('-', '.');
+
+function tabSum(G, N, S, secs, gotN, nB) {
+  const yrs = N.yearsSince < 1 ? Math.round(N.yearsSince * 12) + '개월' : N.yearsSince.toFixed(1) + '년';
+  const recentBadges = secs.flatMap(s => s.items).filter(b => b.v >= b.goal).slice(-8);
+  const near = secs.flatMap(s => s.items).filter(b => b.v < b.goal && b.goal > 1).sort((a, b) => b.v / b.goal - a.v / a.goal).slice(0, 4);
+  return `<div class="tiles st6">
     <div class="tile"><span>움직인 거리</span><b class="a">${C.fmtDist(N.tot)}</b><small>지구 ${(N.tot / 40075000).toFixed(2)}바퀴</small></div>
-    <div class="tile"><span>기록한 날</span><b>${C.nf.format(N.days)}일</b><small>${fd(N.first)}부터 · ${N.yearsSince < 1 ? Math.round(N.yearsSince * 12) + '개월' : N.yearsSince.toFixed(1) + '년'}</small></div>
-    <div class="tile"><span>가 본 나라</span><b class="a">${N.countries}곳</b><small>대륙 ${N.conts}곳 · 해외 지역 ${N.worldRegions}곳</small></div>
-    <div class="tile"><span>대한민국</span><b>${N.krRegions} / 17 시·도</b><small>시·군·구 ${N.towns} / ${T.n}곳</small></div>
+    <div class="tile"><span>기록한 날</span><b>${C.nf.format(N.days)}일</b><small>${fd(N.first)}부터 · ${yrs}</small></div>
+    <div class="tile clickable" data-tab="world"><span>가 본 나라 →</span><b class="a">${N.countries}곳</b><small>대륙 ${N.conts}곳 · 해외 지역 ${N.worldRegions}곳</small></div>
+    <div class="tile clickable" data-tab="kr"><span>대한민국 →</span><b>${N.krRegions} / 17 시·도</b><small>시·군·구 ${N.towns} / ${T.n}곳</small></div>
     <div class="tile"><span>걸음</span><b>${C.nf.format(N.steps)}보</b><small>1만 보 넘은 날 ${N.steps10k}일</small></div>
     <div class="tile"><span>추억</span><b>${C.nf.format(N.mems)}개</b><small>사진 있는 추억 ${N.mPhotos}개</small></div>
-  </div>`;
-  // 이동 수단, 기록 출처, 지구에서 밝힌 곳(앱)
-  h += `<div class="grid" style="margin-top:14px">
+  </div>
+  <div class="stGrid3">
     <div class="card"><span class="muted">이동 수단</span>
       <div class="row"><span>🚶 걷기</span><span class="v">${C.fmtDist(N.walk)}</span></div>${C.bar(N.walk / Math.max(1, N.tot))}
       <div class="row"><span>🚗 차 · 기차</span><span class="v">${C.fmtDist(N.car)}</span></div>${C.bar(N.car / Math.max(1, N.tot), 'sky')}
@@ -306,78 +326,136 @@ function render(G) {
       <div class="row"><span>📱 앱 GPS</span><span class="v">${N.srcDays.app.size}일</span></div>
       <div class="row"><span>🗺️ 구글 타임라인</span><span class="v">${N.srcDays.google.size}일</span></div>
       <div class="row"><span>📷 사진 위치</span><span class="v">${N.srcDays.photo.size}일 · ${C.nf.format(N.photoSpots)}곳</span></div>
-      <div class="row"><span>📍 추억</span><span class="v">${N.srcDays.mem.size}일</span></div></div>
-    <div class="card"><span class="muted">지구에서 밝힌 넓이 (앱 GPS 기준)</span><div class="big">${C.fmtPct(S.earthPct ?? 0)}</div><span>${C.fmtArea(S.area ?? 0)} · 이어서 기록한 최장 ${N.streak}일</span></div>
-  </div>`;
-  // 해마다
+      <div class="row"><span>📍 추억</span><span class="v">${N.srcDays.mem.size}일</span></div>
+      <div class="row"><span>🔗 이어서 기록한 최장</span><span class="v">${N.streak}일</span></div></div>
+    <div class="card clickable" data-tab="badge"><div class="row"><span class="muted">배지 →</span><b style="color:var(--amber)">${gotN} / ${nB}</b></div>${C.bar(gotN / nB)}
+      <div class="miniBadges">${recentBadges.map(b => `<span title="${C.esc(b.t)}">${b.e}</span>`).join('') || '<span class="muted" style="font-size:13px">아직 없어요</span>'}</div>
+      <span class="muted">거의 다 왔어요</span>
+      ${near.map(b => `<div class="row" style="font-size:13px"><span>${b.e} ${C.esc(b.t)}</span><span class="v">${Math.round(b.v / b.goal * 100)}%</span></div>`).join('')}</div>
+  </div>
+  <p class="muted" style="margin:10px 0 0">지구에서 밝힌 넓이(앱 GPS, 10m 칸 기준): <b style="color:var(--txt)">${C.fmtPct(S.earthPct ?? 0)}</b> · ${C.fmtArea(S.area ?? 0)}</p>`;
+}
+
+function tabYear(G, N) {
   const years = new Map();
-  const addY = (d, k, v) => { const y = d.slice(0, 4); let o = years.get(y); if (!o) years.set(y, o = { days: new Set(), dist: 0, countries: new Set(), newC: 0, newT: 0 }); if (k === 'd') o.days.add(d); if (k === 'dist') o.dist += v; };
-  for (const [d, v] of N.dayDist) addY(d, 'dist', v);
-  for (const d of [...N.srcDays.app, ...N.srcDays.google, ...N.srcDays.photo, ...N.srcDays.mem]) addY(d, 'd');
-  for (const [d, cs] of G.dayCountries) { const o = years.get(d.slice(0, 4)); if (o) cs.forEach(c => o.countries.add(c)); }
-  for (const v of G.countries.values()) { const o = years.get(v.first.slice(0, 4)); if (o) o.newC++; }
-  for (const v of G.towns.values()) { const o = years.get(v.first.slice(0, 4)); if (o) o.newT++; }
-  const ys = [...years.keys()].sort().reverse();
-  h += `<section><h2>해마다</h2><div class="card" style="overflow-x:auto"><table class="an-tbl"><tr><th>해</th><th>기록한 날</th><th>움직인 거리</th><th>다녀간 나라</th><th>처음 간 나라</th><th>처음 간 시·군·구</th></tr>` +
-    ys.map(y => { const o = years.get(y); return `<tr><td>${y}년</td><td>${o.days.size}일</td><td>${o.dist ? C.fmtDist(o.dist) : '-'}</td><td>${o.countries.size || '-'}</td><td>${o.newC || '-'}</td><td>${o.newT || '-'}</td></tr>`; }).join('') + `</table></div></section>`;
-  // 나라
-  const appPct = new Map((S.countries || []).map(c => [c.name, c]));
+  const get = (y) => { let o = years.get(y); if (!o) years.set(y, o = { days: new Set(), dist: 0, countries: new Set(), newC: 0, newT: 0 }); return o; };
+  for (const [d, v] of N.dayDist) get(d.slice(0, 4)).dist += v;
+  for (const d of [...N.srcDays.app, ...N.srcDays.google, ...N.srcDays.photo, ...N.srcDays.mem]) get(d.slice(0, 4)).days.add(d);
+  for (const [d, cs] of G.dayCountries) cs.forEach(c => get(d.slice(0, 4)).countries.add(c));
+  for (const v of G.countries.values()) get(v.first.slice(0, 4)).newC++;
+  for (const v of G.towns.values()) get(v.first.slice(0, 4)).newT++;
+  const ys = [...years.keys()].sort();
+  const mx = Math.max(1, ...ys.map(y => years.get(y).dist));
+  return `<div class="stGrid2">
+    <div class="card"><h3>해마다 움직인 거리</h3><div class="yBars">${ys.map(y => { const o = years.get(y); return `<div class="yb"><b>${o.dist ? Math.round(o.dist / 1000).toLocaleString('ko-KR') : ''}</b><i style="height:${(o.dist / mx * 100).toFixed(1)}%"></i><span>${y}</span></div>`; }).join('')}</div><span class="muted">단위 km</span></div>
+    <div class="card" style="overflow:auto"><table class="an-tbl"><tr><th>해</th><th>기록한 날</th><th>거리</th><th>나라</th><th>처음 간 나라</th><th>처음 간 시·군·구</th></tr>` +
+    [...ys].reverse().map(y => { const o = years.get(y); return `<tr><td>${y}년</td><td>${o.days.size}일</td><td>${o.dist ? C.fmtDist(o.dist) : '-'}</td><td>${o.countries.size || '-'}</td><td>${o.newC || '-'}</td><td>${o.newT || '-'}</td></tr>`; }).join('') + `</table></div></div>`;
+}
+
+const srcIcon = (set) => [set.has('app') && '📱', set.has('google') && '🗺️', (set.has('photo') || set.has('phone')) && '📷', set.has('mem') && '📍'].filter(Boolean).join('');
+function tabWorld(G, N, S) {
   const cl = [...G.countries.entries()].sort((a, b) => b[1].days.size - a[1].days.size);
+  if (!cl.length) return '<p class="muted">아직 기록이 없어요.</p>';
   const regTotal = new Map(); for (let i = 0; i < R.n; i++) { const c = R.countries[R.rc[i]]; regTotal.set(c, (regTotal.get(c) || 0) + 1); }
   const regByC = new Map(); for (const r of G.regions.keys()) { const c = R.countries[R.rc[r]]; if (!regByC.has(c)) regByC.set(c, []); regByC.get(c).push(r); }
-  const srcIcon = (set) => [set.has('app') && '📱', set.has('google') && '🗺️', (set.has('photo') || set.has('phone')) && '📷', set.has('mem') && '📍'].filter(Boolean).join('');
-  h += `<section><h2>가 본 나라 <span class="muted" style="font-size:16px">${cl.length}곳 · ${[...G.conts.keys()].join(', ')}</span></h2><div class="grid">`;
-  for (const [name, v] of cl) {
-    const regs = (regByC.get(name) || []).sort((a, b) => G.regions.get(b).days.size - G.regions.get(a).days.size);
-    const ap = appPct.get(name);
-    h += `<div class="card"><div class="row"><h3>${C.esc(name)}</h3><span class="v">${srcIcon(v.src)}</span></div>
-      <span class="muted">${v.cont} · 처음 ${fd(v.first)} · ${v.days.size}일 · 지역 ${regs.length} / ${regTotal.get(name) || '?'}${ap ? ` · 밝힌 넓이 ${C.fmtPct(ap.pct)}` : ''}</span>
-      ${C.bar(regs.length / Math.max(1, regTotal.get(name) || 1), 'sky')}
-      ${regs.slice(0, 6).map(r => `<div class="row"><span>${C.esc(R.name[r])}</span><span class="v">${G.regions.get(r).days.size}일</span></div>`).join('')}
-      ${regs.length > 6 ? `<span class="muted">외 ${regs.length - 6}곳</span>` : ''}</div>`;
-  }
-  h += `</div></section>`;
-  // 대한민국 시군구
-  const townPct = new Map((S.towns || []).map(t => [t.name, t]));
-  const sidos = [...N.sidoTotal.keys()];
-  h += `<section><h2>대한민국 시·군·구 <span class="muted" style="font-size:16px">${N.towns} / ${T.n}곳</span></h2><div class="grid">`;
-  for (const sd of sidos.sort((a, b) => (N.townsBySido.get(b) || 0) / N.sidoTotal.get(b) - (N.townsBySido.get(a) || 0) / N.sidoTotal.get(a))) {
-    const got = N.townsBySido.get(sd) || 0, tot = N.sidoTotal.get(sd);
-    const names = [...G.towns.keys()].filter(t => T.countries[T.rc[t]] === sd).sort((a, b) => G.towns.get(b).days.size - G.towns.get(a).days.size);
-    h += `<div class="card" style="gap:8px"><div class="row"><h3>${C.esc(sd)}</h3><b style="color:${got ? 'var(--amber)' : 'var(--sub)'}">${got} / ${tot}</b></div>${C.bar(got / tot, got === tot ? 'green' : '')}
-      <span class="muted" style="line-height:1.7">${names.length ? names.map(t => { const tp = townPct.get(sd.replace(/(특별자치도|특별자치시|특별시|광역시|도)$/, '') + ' ' + T.name[t]) || townPct.get(T.name[t]); return C.esc(T.name[t]) + (tp ? ` <span style="color:var(--green)">${C.fmtPct(tp.pct)}</span>` : ''); }).join(' · ') : '아직 없어요'}</span></div>`;
-  }
-  h += `</div></section>`;
-  // 배지
-  const secs = badgeSections(N);
-  const allB = secs.flatMap(s => s.items), gotN = allB.filter(b => b.v >= b.goal).length;
-  h += `<section><h2>배지 <span class="muted" style="font-size:16px">${gotN} / ${allB.length}개 모음</span></h2>${C.bar(gotN / allB.length)}`;
-  for (const s of secs) {
-    const g = s.items.filter(b => b.v >= b.goal).length;
-    h += `<h3 class="bsec">${s.title} <span class="muted">${g} / ${s.items.length}</span></h3><div class="badges">`;
-    for (const b of s.items) {
-      const got = b.v >= b.goal, p = pct(b.v, b.goal);
-      const vt = b.goal === 1 ? '' : `${fmtN(Math.min(b.v, b.goal))} / ${fmtN(b.goal)}`;
-      h += `<div class="badge ${got ? 'got' : ''}" title="${C.esc(b.d)}"><div class="e">${b.e}</div><b>${C.esc(b.t)}</b><span>${C.esc(b.d)}</span>
-        ${got ? '' : `<div class="bar" style="margin-top:6px;height:5px"><i style="width:${(p * 100).toFixed(1)}%"></i></div>${vt ? `<span style="font-size:10px">${vt}</span>` : ''}`}</div>`;
-    }
-    h += `</div>`;
-  }
-  h += `</section>`;
-  // 앱이 계산한 것들 (자주 가는 곳)
-  if (S.places?.length) {
-    h += `<section><h2>자주 가는 곳 <span class="muted" style="font-size:15px">앱 기록 기준</span></h2><div class="grid">`;
-    S.places.forEach((p, i) => { h += `<div class="card"><h3>${['🥇', '🥈', '🥉'][i] ?? i + 1} ${C.esc(p.name || (p.near ? p.near + ' 근처' : '이름 없는 곳'))}</h3><span class="muted">${p.visits}번 머묾 · 모두 ${C.hours(p.ms)}</span></div>`; });
-    h += `</div></section>`;
-  }
-  h += `<p class="muted" style="margin-top:24px">나라·지역은 약 500m 칸 단위로 판단해요. 경계 자료: Natural Earth, 통계청. 밝힌 넓이(%)는 폰 앱이 10m 칸으로 계산한 값이에요.</p>`;
-  $('statsBox').innerHTML = h;
+  if (!UI.country || !G.countries.has(UI.country)) UI.country = cl[0][0];
+  const cur = G.countries.get(UI.country), regs = (regByC.get(UI.country) || []).sort((a, b) => G.regions.get(b).days.size - G.regions.get(a).days.size);
+  const ap = (S.countries || []).find(c => c.name === UI.country);
+  const byCont = new Map(); for (const [n, v] of cl) { const k = v.cont || '기타'; if (!byCont.has(k)) byCont.set(k, 0); byCont.set(k, byCont.get(k) + 1); }
+  return `<div class="pickWrap">
+    <div class="pickList">
+      <div class="contRow">${[...byCont.entries()].map(([k, n]) => `<span>${k} ${n}</span>`).join('')}</div>
+      ${cl.map(([n, v]) => { const rc = (regByC.get(n) || []).length, rt = regTotal.get(n) || 1; return `<button class="pickItem" data-pick="country|${C.esc(n)}" aria-pressed="${n === UI.country}"><span class="nm">${C.esc(n)}</span><span class="sub">${v.days.size}일 · 지역 ${rc}/${rt}</span>${C.bar(rc / rt, 'sky')}</button>`; }).join('')}
+    </div>
+    <div class="card pickDetail">
+      <div class="row"><h3 style="font-size:22px">${C.esc(UI.country)}</h3><span>${srcIcon(cur.src)}</span></div>
+      <div class="tiles" style="grid-template-columns:repeat(4,1fr)">
+        <div class="tile"><span>대륙</span><b>${cur.cont || '-'}</b></div>
+        <div class="tile"><span>처음 간 날</span><b style="font-size:18px">${fd(cur.first)}</b></div>
+        <div class="tile"><span>머문 날</span><b>${cur.days.size}일</b></div>
+        <div class="tile"><span>지역</span><b>${regs.length} / ${regTotal.get(UI.country) || '?'}</b>${ap ? `<small>밝힌 넓이 ${C.fmtPct(ap.pct)}</small>` : ''}</div>
+      </div>
+      <div class="regGrid">${regs.map(r => { const v = G.regions.get(r); return `<div class="row"><span>${C.esc(R.name[r])}</span><span class="v">${v.days.size}일 · ${fd(v.first).slice(2)}</span></div>`; }).join('')}</div>
+    </div></div>`;
 }
+
+function tabKr(G, N, S) {
+  const sidos = [...N.sidoTotal.keys()].sort((a, b) => (N.townsBySido.get(b) || 0) / N.sidoTotal.get(b) - (N.townsBySido.get(a) || 0) / N.sidoTotal.get(a));
+  if (!UI.sido) UI.sido = sidos[0];
+  const townPct = new Map((S.towns || []).map(t => [t.name, t]));
+  const all = []; for (let i = 0; i < T.n; i++) if (T.countries[T.rc[i]] === UI.sido) all.push(i);
+  all.sort((a, b) => (G.towns.get(b)?.days.size || 0) - (G.towns.get(a)?.days.size || 0) || T.name[a].localeCompare(T.name[b]));
+  const got = N.townsBySido.get(UI.sido) || 0, tot = N.sidoTotal.get(UI.sido);
+  return `<div class="pickWrap">
+    <div class="pickList krList">
+      <div class="contRow"><span>시·도 ${N.krRegions} / 17</span><span>시·군·구 ${N.towns} / ${T.n}</span></div>
+      ${sidos.map(sd => { const g = N.townsBySido.get(sd) || 0, t = N.sidoTotal.get(sd); return `<button class="pickItem" data-pick="sido|${sd}" aria-pressed="${sd === UI.sido}"><span class="nm">${sd}</span><span class="sub" style="color:${g ? (g === t ? 'var(--green)' : 'var(--amber)') : 'var(--sub)'}">${g} / ${t}</span>${C.bar(g / t, g === t ? 'green' : '')}</button>`; }).join('')}
+    </div>
+    <div class="card pickDetail">
+      <div class="row"><h3 style="font-size:22px">${UI.sido}</h3><b style="color:var(--amber);font-size:20px">${got} / ${tot}</b></div>${C.bar(got / tot, got === tot ? 'green' : '')}
+      <div class="townGrid">${all.map(t => { const v = G.towns.get(t), tp = townPct.get(T.name[t]);
+        return `<div class="town ${v ? 'got' : ''}"><b>${C.esc(T.name[t])}</b><span>${v ? `${v.days.size}일 · ${fd(v.first).slice(2)}${tp ? ` · ${C.fmtPct(tp.pct)}` : ''}` : '아직'}</span></div>`; }).join('')}</div>
+    </div></div>`;
+}
+
+function tabBadge(G, N, S, secs, gotN, nB) {
+  const s = secs[UI.bsec] || secs[0];
+  return `<div class="bTop"><b style="color:var(--amber);font-size:20px">${gotN} / ${nB}</b><div style="flex:1">${C.bar(gotN / nB)}</div></div>
+    <div class="bChips">${secs.map((x, i) => { const g = x.items.filter(b => b.v >= b.goal).length; return `<button data-pick="bsec|${i}" aria-pressed="${i === UI.bsec}">${x.title} <small>${g}/${x.items.length}</small></button>`; }).join('')}</div>
+    <div class="badges bGrid">${s.items.map(b => {
+      const got = b.v >= b.goal, p = Math.max(0, Math.min(1, b.v / b.goal)), vt = b.goal === 1 ? '' : `${fmtN(Math.min(b.v, b.goal))} / ${fmtN(b.goal)}`;
+      return `<div class="badge ${got ? 'got' : ''}" title="${C.esc(b.d)}"><div class="e">${b.e}</div><b>${C.esc(b.t)}</b><span>${C.esc(b.d)}</span>
+        ${got ? '<span style="color:var(--amber);font-size:11px">획득!</span>' : `<div class="bar" style="margin-top:6px;height:5px"><i style="width:${(p * 100).toFixed(1)}%"></i></div>${vt ? `<span style="font-size:10px">${vt}</span>` : ''}`}</div>`;
+    }).join('')}</div>`;
+}
+
+function tabPlace(G, N, S) {
+  if (!S.places?.length) return '<p class="muted">폰 앱이 동기화하면 오래 머문 곳이 나타나요.</p>';
+  return `<p class="muted" style="margin:0 0 12px">폰 앱 GPS로 오래 머문 곳이에요.</p><div class="grid">${S.places.map((p, i) => `<div class="card"><h3>${['🥇', '🥈', '🥉'][i] ?? i + 1} ${C.esc(p.name || (p.near ? p.near + ' 근처' : '이름 없는 곳'))}</h3><span class="muted">${p.visits}번 머묾 · 모두 ${C.hours(p.ms)}</span></div>`).join('')}</div>`;
+}
+
 function fmtN(v) { return v >= 100 ? C.nf.format(Math.round(v)) : v >= 10 ? (Math.round(v * 10) / 10).toString() : (Math.round(v * 100) / 100).toString(); }
 
 function injectStyle() {
   const st = document.createElement('style');
   st.textContent = `
+  #page-stats .scroll.stWrap { height: 100%; display: flex; flex-direction: column; padding-bottom: 20px; box-sizing: border-box; }
+  .stHead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .stHead h2 { margin: 0 0 12px; }
+  .stTabs { display: flex; gap: 6px; border-bottom: 1px solid var(--grid); margin-bottom: 16px; flex-wrap: wrap; }
+  .stTabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--sub); font-size: 15px; padding: 10px 14px; font-family: inherit; cursor: pointer; }
+  .stTabs button small { font-size: 11px; background: var(--field); border-radius: 9px; padding: 1px 7px; margin-left: 4px; }
+  .stTabs button[aria-selected=true] { color: var(--amber-text); border-bottom-color: var(--amber); font-weight: 700; }
+  .stBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+  .st6 { grid-template-columns: repeat(3, 1fr); }
+  .stGrid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .stGrid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; flex: 1; min-height: 0; }
+  .clickable { cursor: pointer; transition: transform .15s; } .clickable:hover { transform: translateY(-2px); }
+  .miniBadges { display: flex; gap: 6px; font-size: 26px; flex-wrap: wrap; }
+  .yBars { display: flex; align-items: flex-end; gap: 10px; height: 240px; }
+  .yb { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; min-width: 0; }
+  .yb i { width: 100%; max-width: 56px; background: var(--amber); border-radius: 5px 5px 0 0; min-height: 2px; display: block; }
+  .yb b { font-size: 11px; color: var(--sub); font-weight: 500; } .yb span { font-size: 12px; color: var(--sub); }
+  .pickWrap { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .pickList { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+  .contRow { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+  .contRow span { background: var(--field); border-radius: 10px; padding: 3px 9px; }
+  .pickItem { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; text-align: left; background: var(--panel); border: 1px solid transparent; border-radius: 12px; padding: 9px 12px; color: var(--txt); font-family: inherit; cursor: pointer; }
+  .pickItem .bar { grid-column: 1 / -1; height: 5px; }
+  .pickItem .nm { font-size: 14px; font-weight: 600; } .pickItem .sub { font-size: 12px; color: var(--sub); }
+  .pickItem[aria-pressed=true] { border-color: var(--amber); background: var(--amber-dark); }
+  .pickDetail { overflow-y: auto; min-height: 0; }
+  .regGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 18px; }
+  .townGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .town { background: var(--field); border-radius: 10px; padding: 8px 10px; opacity: .5; }
+  .town.got { opacity: 1; box-shadow: inset 3px 0 0 var(--amber); }
+  .town b { display: block; font-size: 13px; } .town span { font-size: 11px; color: var(--sub); }
+  .bTop { display: flex; gap: 14px; align-items: center; }
+  .bChips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bChips button { height: 34px; border-radius: 17px; border: 1px solid var(--line); background: var(--panel); color: var(--sub); padding: 0 12px; font-size: 13px; font-family: inherit; cursor: pointer; }
+  .bChips button small { font-size: 11px; opacity: .8; }
+  .bChips button[aria-pressed=true] { border-color: var(--amber); background: var(--amber-dark); color: var(--amber-text); font-weight: 700; }
+  .bGrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); overflow-y: auto; min-height: 0; }
   .bsec { margin: 26px 0 10px; font-size: 17px; display: flex; gap: 10px; align-items: baseline; }
   .bsec .muted { font-size: 13px; }
   #page-stats .badge span { display: block; }
