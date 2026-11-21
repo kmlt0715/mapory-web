@@ -447,7 +447,7 @@ const FOGS = [['흰 안개', '#F4F6F8'], ['밤 안개', '#25303E'], ['새벽 보
 const ICON_NAMES = { '✈️':'여행','🍽️':'음식','☕':'카페','🍺':'술자리','🍰':'디저트','🛍️':'쇼핑','🏠':'집','💼':'일','📚':'공부','🏃':'운동','⛰️':'산','🌊':'바다','🏕️':'캠핑','🌸':'산책','🚗':'드라이브','🎬':'영화','🎵':'공연','🎮':'놀이','📷':'사진','❤️':'데이트','👪':'가족','👫':'친구','🐶':'반려동물','🎂':'기념일','🏨':'숙소','⛳':'골프','🏥':'병원','⛪':'명소','⭐':'특별' };
 const DOW = '일월화수목금토';
 
-let uid = null, days = [], mems = [], summary = null, extra = [], hasWebCols = false, hasExtra = false;
+let uid = null, days = [], mems = [], summary = null, extra = [], hasWebCols = false, hasExtra = false, health = [], hasHealth = false;
 let segs = [];          // 길 구간: { day, mx, my, ll: [[lon,lat]...] }
 let photoUrl = {};
 let view = { mode: 'all', from: null, to: null };
@@ -573,13 +573,15 @@ async function loadData() {
       { id: 4, ts: now - 90 * 864e5, lat: 33.5050, lon: 126.5400, title: '제주 여행', body: '', icon: '✈️', photos: [] },
     ];
     summary = demoSummary(now);
-    hasWebCols = hasExtra = true;
+    hasWebCols = hasExtra = hasHealth = true;
+    health = demoHealth();
   } else {
     try { days = await fetchAll('days', 'day,track,times,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'); }
     catch (e) { days = await fetchAll('days', 'day,track,dist_walk,dist_car,dist_plane,area_km2,steps', 'day'); }
     // 홈페이지에서 지운 추억(앱이 아직 못 받아 간 것)은 빼고 보여줍니다. 추가 SQL 전이면 예전 방식으로 읽습니다.
     try { mems = (await fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos,web_deleted', 'ts')).filter(m => !m.web_deleted); hasWebCols = true; }
     catch (e) { mems = await fetchAll('memories', 'id,ts,lat,lon,title,body,icon,photos', 'ts'); hasWebCols = false; }
+    try { health = await fetchAll('health', 'day,data', 'day'); hasHealth = true; } catch (e) { health = []; hasHealth = false; }
     try { extra = await fetchAll('extra_days', 'source,day,track,times,dist_walk,dist_car,dist_plane', 'day').catch(() => fetchAll('extra_days', 'source,day,track,dist_walk,dist_car,dist_plane', 'day')); hasExtra = true; }
     catch (e) { extra = []; hasExtra = false; }
     const s = await sb.from('summary').select('data,updated_at').maybeSingle();
@@ -1259,6 +1261,33 @@ function openMemory(id) {
 $('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').close(); });
 
 // ───────── 하루 기록 ─────────
+// 시험용 워치 기록 (심박·수면·산소포화도·체성분·운동)
+function demoHealth() {
+  const out = [], t = new Date(); let w = 72.4;
+  const rnd = (k, a) => { const x = Math.sin(k * 12.9898 + a * 78.233) * 43758.5453; return x - Math.floor(x); };
+  for (let k = 120; k >= 0; k--) {
+    const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - k), day = dayOf(d.getTime());
+    w += (rnd(k, 1) - 0.52) * 0.25;
+    const bed = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, 23, Math.floor(rnd(k, 2) * 80) - 20).getTime();
+    const asleep = 330 + Math.floor(rnd(k, 3) * 120), flow = []; let off = 0;
+    while (off < asleep) { const cyc = [['light', 25 + rnd(k + off, 4) * 20], ['deep', 10 + rnd(k + off, 5) * 25 * (off < 200 ? 1 : 0.3)], ['light', 15], ['rem', 10 + rnd(k + off, 6) * 20 * (off > 150 ? 1.6 : 0.6)], ['awake', rnd(k + off, 7) * 6]];
+      for (const [st, m] of cyc) { const mm = Math.round(m); if (mm < 1) continue; flow.push([off, mm, st]); off += mm; } }
+    const sum = (st) => flow.filter(f => f[2] === st).reduce((a, f) => a + f[1], 0);
+    const hrH = Array.from({ length: 24 }, (_, h) => Math.round((h < 7 ? 56 : h < 9 ? 72 : h < 19 ? 78 + rnd(k, h) * 14 : 68) + rnd(k, h + 30) * 6));
+    const o = { hr: { avg: Math.round(hrH.reduce((a, b) => a + b, 0) / 24), min: 49 + Math.floor(rnd(k, 8) * 5), max: 118 + Math.floor(rnd(k, 9) * 40) }, hrH,
+      rhr: 56 + Math.round(rnd(k, 10) * 6 - (120 - k) / 60), hrv: Math.round(32 + rnd(k, 11) * 22), spo2: { avg: 95 + Math.round(rnd(k, 12) * 30) / 10, min: 89 + Math.round(rnd(k, 13) * 5) }, resp: 13 + Math.round(rnd(k, 14) * 40) / 10,
+      sleep: { start: bed, end: bed + off * 60000, asleep: off - sum('awake'), inBed: off, deep: sum('deep'), light: sum('light'), rem: sum('rem'), awake: sum('awake'), nap: rnd(k, 15) > 0.85 ? 25 : 0, flow },
+      akcal: 380 + Math.round(rnd(k, 16) * 420), kcal: 2050 + Math.round(rnd(k, 17) * 600), floors: Math.round(rnd(k, 18) * 18), };
+    if (k % 3 === 0) { o.weight = Math.round(w * 10) / 10; o.fat = Math.round((21.5 + (w - 72) * 0.6 + rnd(k, 19)) * 10) / 10; o.bmr = 1580 + Math.round(rnd(k, 20) * 40); o.lean = Math.round(w * 0.78 * 10) / 10; o.water = Math.round(w * 0.56 * 10) / 10; }
+    if (k % 7 === 0) o.bp = { sys: 112 + Math.round(rnd(k, 21) * 18), dia: 72 + Math.round(rnd(k, 22) * 12), n: 1 };
+    if (k % 10 === 0) o.vo2 = Math.round((41 + (120 - k) / 60 + rnd(k, 23)) * 10) / 10;
+    if (rnd(k, 24) > 0.55) o.ex = [{ t: ['걷기', '달리기', '자전거', '근력 운동', '등산'][Math.floor(rnd(k, 25) * 5)], start: d.getTime() + 18 * 3600e3, min: 25 + Math.round(rnd(k, 26) * 50), title: '' }];
+    out.push({ day, data: o });
+  }
+  out[0].data.height = 175;
+  return out;
+}
+
 // ───────── 헬스체크: 걸음·걷기 거리로 보는 활동 건강 ─────────
 const STEP_GOAL = () => +(localStorage.getItem('mp_goal') || 10000);
 /** 하루 걸음으로 보는 활동 단계 (Tudor-Locke 기준) */
@@ -1269,8 +1298,8 @@ function stepLevel(v) {
   if (v < 12500) return ['활동적', '#4CB66B', 3];
   return ['매우 활동적', '#2E9E5B', 4];
 }
-function renderDays() {
-  const box = $('healthBox'); if (!box) return;
+function renderDays(boxEl) {
+  const box = boxEl || $('healthBox'); if (!box) return;
   const goal = STEP_GOAL(), today = dayOf(Date.now());
   const byDay = new Map(days.map(d => [d.day, d]));
   const withSteps = days.filter(d => d.steps > 0);
@@ -1307,7 +1336,7 @@ function renderDays() {
   const mMax = Math.max(1, ...months.map(m => m[1]));
   const trend = a7 && p7 ? Math.round((a7 - p7) / p7 * 100) : null;
   const lvl = ['앉아 있는 편', '조금 활동적', '꽤 활동적', '활동적', '매우 활동적'];
-  box.innerHTML = `<div class="hHead"><h2>🩺 헬스체크</h2><span class="muted">폰의 걸음 수(헬스 커넥트)와 걸은 거리로 보는 활동 건강</span>
+  box.innerHTML = `<div class="hHead">${boxEl ? '' : '<h2>🩺 헬스체크</h2><span class="muted">폰의 걸음 수(헬스 커넥트)와 걸은 거리로 보는 활동 건강</span>'}
     <label class="muted" style="margin-left:auto;display:flex;align-items:center;gap:8px">하루 목표 <select id="hGoal">${[6000, 7500, 8000, 10000, 12000, 15000].map(g => `<option value="${g}" ${g === goal ? 'selected' : ''}>${nf.format(g)}보</option>`).join('')}</select></label></div>
   ${withSteps.length ? '' : '<div class="note warn">아직 걸음 기록이 없어요. 폰 앱에서 헬스 커넥트 걸음 권한을 허용하고 동기화하면 채워져요.</div>'}
   <div class="hTop">
@@ -1333,7 +1362,7 @@ function renderDays() {
       <span class="muted">${wAvg[bestW] ? `가장 많이 걷는 요일 <b style="color:var(--txt)">${DOW[bestW]}요일</b>` : ''}${worstW >= 0 && worstW < 7 && worstW !== bestW ? ` · 가장 적게 걷는 요일 ${DOW[worstW]}요일` : ''}</span></div>
     <div class="card"><h3>달마다 하루 평균</h3><div class="months" style="height:150px">${months.map(([m, v]) => `<div class="m" data-tip="${m}월 하루 평균<br>${v ? nf.format(Math.round(v)) + '보' : '기록 없음'}"><b>${v ? (v / 1000).toFixed(1) + 'k' : ''}</b><i style="height:${(v / mMax * 100).toFixed(1)}px;${v >= goal ? 'background:#4CB66B' : ''}"></i><span>${m}월</span></div>`).join('')}</div></div>
   </div>`;
-  $('hGoal').onchange = () => { localStorage.setItem('mp_goal', $('hGoal').value); renderDays(); };
+  $('hGoal').onchange = () => { localStorage.setItem('mp_goal', $('hGoal').value); renderDays(boxEl); };
   box.querySelectorAll('[data-tip]').forEach(el => { el.onmousemove = (e) => showTip(e, el.dataset.tip); el.onmouseleave = hideTip; });
 }
 
@@ -1744,7 +1773,7 @@ const CTX = {
   makeMap, Fog, boundsOf, pUrl, firstPhoto, openMemory, fetchAll, go, TOOLS, total, fmtPct, bar, hours,
   get uid() { return uid; }, get days() { return days; }, get mems() { return mems; }, set mems(v) { mems = v; },
   get segs() { return segs; }, get summary() { return summary; }, get extra() { return extra; }, set extra(v) { extra = v; },
-  get hasWebCols() { return hasWebCols; }, get hasExtra() { return hasExtra; },
+  get hasWebCols() { return hasWebCols; }, get hasExtra() { return hasExtra; }, get health() { return health; }, get hasHealth() { return hasHealth; }, renderDays, showTip, hideTip, STEP_GOAL,
   /** 기록이 바뀐 뒤 다른 화면들을 다시 그림 */
   refresh() { buildSegs(); renderHome(); renderAlbum(); if (map) { drawPins(); fog.draw(); } },
 };
@@ -1777,6 +1806,7 @@ async function start(session) {
   renderHome(); renderStats(); renderAlbum(); renderDays();
   try { (await import('./tools.js?v=6')).setup(CTX); } catch (e) { console.error('도구를 불러오지 못했어요', e); }
   try { (await import('./stats.js?v=2')).setup(CTX); } catch (e) { console.error('통계를 불러오지 못했어요', e); }
+  try { (await import('./health.js?v=2')).setup(CTX); } catch (e) { console.error('헬스체크를 불러오지 못했어요', e); }
   go('home');
 }
 
