@@ -36,8 +36,20 @@ function initUsage() {
     const k = b.dataset.th; localStorage.setItem('mp_theme', k);
     if (k === 'dark') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = k;
     th.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    C.TOOLS.manual?.show?.();
   });
   box.after(th);
+  // 사용 설명서
+  const mb2 = document.createElement('button');
+  mb2.className = 'manualNav'; mb2.dataset.page = 'manual'; mb2.textContent = '📖 사용 설명서';
+  mb2.onclick = () => C.go('manual');
+  th.after(mb2);
+  const mp = document.createElement('div');
+  mp.className = 'page hidden'; mp.id = 'page-manual';
+  mp.innerHTML = '<iframe id="manualFrame" title="Mapory 사용 설명서" style="width:100%;height:100%;border:0;display:block"></iframe>';
+  document.querySelector('main').appendChild(mp);
+  const theme = () => localStorage.getItem('mp_theme') || 'dark';
+  C.TOOLS.manual = { show: () => { const f = $('manualFrame'), u = 'manual.html?theme=' + theme(); if (f.dataset.u !== u) { f.dataset.u = u; f.src = u; } } };
   loadUsage();
   setInterval(loadUsage, 10 * 60 * 1000);
 }
@@ -104,6 +116,7 @@ function injectStyle() {
   .themePick button { border: 0; background: none; color: var(--sub); border-radius: 9px; padding: 6px 0 4px; font-size: 15px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: inherit; }
   .themePick button span { font-size: 10px; }
   .themePick button[aria-pressed=true] { background: var(--panel); color: var(--txt); font-weight: 700; box-shadow: 0 1px 3px var(--shadow); }
+  .manualNav { margin: 0 6px 6px; }
   .usageNav span { grid-column: 1 / -1; font-size: 12px; color: var(--txt); }
   .usageNav .mini { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; }
   .usageNav .mini i { display: block; height: 100%; background: var(--amber); }

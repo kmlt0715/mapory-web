@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapory 사용 설명서</title>
+<script>
+  // ?theme=light|space 로 테마를 받습니다. (앱은 기본 다크)
+  try { const t = new URLSearchParams(location.search).get('theme'); if (t && t !== 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+  :root {
+    --bg: #1A222D; --panel: #141B24; --field: #1D2733; --line: #3A4758;
+    --amber: #F5B041; --amber-text: #FFD27A; --txt: #F3EFE6; --sub: #C9D2DD; --green: #5FD3A2; --sky: #7FB6F2;
+    color-scheme: dark;
+  }
+  :root[data-theme=light] {
+    --bg: #F3F4F6; --panel: #FFFFFF; --field: #EEF1F5; --line: #D3D9E1;
+    --amber: #F0A02A; --amber-text: #8A5A06; --txt: #1A222D; --sub: #556070; --green: #23955A; --sky: #3D7FD6;
+    color-scheme: light;
+  }
+  :root[data-theme=space] {
+    --bg: #0D1026; --panel: #151938; --field: #1D2248; --line: #363C7A;
+    --amber: #FFB86B; --amber-text: #FFD1A1; --txt: #EEF0FF; --sub: #B7BCE6; --green: #6EE7B7; --sky: #8FB8FF;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body { margin: 0; background: var(--bg); color: var(--txt); font-family: Pretendard, "Noto Sans KR", system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.7; -webkit-text-size-adjust: 100%; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 18px 80px; }
+  header.top { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+  header.top .in { max-width: 760px; margin: 0 auto; padding: 10px 18px; display: flex; gap: 6px; align-items: center; }
+  header.top b { font-size: 17px; margin-right: auto; }
+  .tab { border: 0; border-radius: 999px; padding: 7px 14px; background: var(--field); color: var(--sub); font: inherit; font-size: 14px; text-decoration: none; }
+  .tab.on { background: var(--amber); color: #1A1408; font-weight: 700; }
+  h1 { font-size: 26px; line-height: 1.3; margin: 10px 0 4px; }
+  h2 { font-size: 20px; margin: 40px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 22px 0 6px; color: var(--amber-text); }
+  p { margin: 6px 0 10px; }
+  .lead { color: var(--sub); margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+  .toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; padding: 0; list-style: none; margin: 10px 0 0; }
+  .toc a { display: block; background: var(--field); border-radius: 10px; padding: 8px 10px; color: var(--txt); text-decoration: none; font-size: 14px; }
+  ul, ol { margin: 6px 0 10px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .k { display: inline-block; background: var(--field); border: 1px solid var(--line); border-radius: 7px; padding: 0 7px; font-size: 13px; white-space: nowrap; }
+  .muted { color: var(--sub); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  td, th { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--sub); font-weight: 600; font-size: 13px; }
+  td.sw { width: 62px; }
+  .tip { border-left: 3px solid var(--amber); padding: 6px 12px; background: var(--field); border-radius: 0 10px 10px 0; margin: 10px 0; font-size: 14px; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 8px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+  .part { display: inline-block; font-size: 12px; font-weight: 700; color: var(--amber-text); letter-spacing: .04em; margin-top: 30px; }
+  a { color: var(--sky); }
+  .tab { white-space: nowrap; }
+  @media (max-width: 520px) {
+    header.top .in { padding: 8px 12px; gap: 4px; }
+    header.top b { font-size: 15px; white-space: nowrap; }
+    header.top .long { display: none; }
+    .tab { padding: 6px 9px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <b>📖 <span class="long">Mapory </span>사용 설명서</b>
+  <a class="tab" href="#app">📱 앱</a>
+  <a class="tab" href="#web">💻 홈페이지</a>
+  <a class="tab" href="#faq">❓ 질문</a>
+</div></header>
+
+<div class="wrap">
+  <h1>Mapory 사용 설명서</h1>
+  <p class="lead">Mapory는 다녀간 길만큼 지도의 안개가 걷히는 일기장이에요. 휴대폰 앱이 길을 기록하고, 홈페이지에서는 큰 화면으로 모아 보고 꾸미고 내려받을 수 있어요.</p>
+
+  <div class="card">
+    <b>이렇게 이어져 있어요</b>
+    <p style="margin:6px 0 0">📱 앱이 GPS로 길을 기록 → ☁️ 6시간마다(또는 <span class="k">지금 동기화</span>) 서버에 사본을 올림 → 💻 홈페이지에서 봄.<br>
+    홈페이지에서 고친 추억이나 지운 사진 위치는 다음 동기화 때 앱에도 반영돼요. 원본 사진·영상은 폰에 그대로 남아요.</p>
+  </div>
+
+  <ul class="toc">
+    <li><a href="#colors">🎨 지도 색 읽는 법</a></li>
+    <li><a href="#start">🚀 처음 시작하기</a></li>
+    <li><a href="#appmap">🗺️ 앱 · 지도</a></li>
+    <li><a href="#appmem">📷 앱 · 추억</a></li>
+    <li><a href="#appstats">📊 앱 · 통계</a></li>
+    <li><a href="#appset">⚙️ 앱 · 설정</a></li>
+    <li><a href="#webhome">🏠 홈 · 지도</a></li>
+    <li><a href="#webjourney">🎬 여정 영상</a></li>
+    <li><a href="#webstats">📊 통계 · 헬스체크</a></li>
+    <li><a href="#webtools">🧰 만들기 도구</a></li>
+    <li><a href="#webdata">💾 불러오기 · 백업</a></li>
+    <li><a href="#faq">❓ 자주 묻는 질문</a></li>
+  </ul>
+
+  <!-- ───────── 지도 색 ───────── -->
+  <h2 id="colors">🎨 지도 색 읽는 법</h2>
+  <table>
+    <tr><th></th><th>무엇인가요</th></tr>
+    <tr><td class="sw"><svg width="54" height="22"><rect width="54" height="22" rx="5" fill="#9aa3ad"/><path d="M4 15 C16 4 30 18 50 7" stroke="#e9eef3" stroke-width="7" fill="none" stroke-linecap="round"/></svg></td>
+      <td><b>안개가 걷힌 길</b> — 내가 실제로 지나간 곳이에요. 길 폭은 10m예요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><rect width="54" height="22" rx="5" fill="#9aa3ad"/><path d="M4 15 C16 4 30 18 50 7" stroke="#e9eef3" stroke-opacity=".35" stroke-width="7" fill="none" stroke-linecap="round"/></svg></td>
+      <td><b>연하게 걷힌 길</b> — <b>오늘</b> 탭에서는 지난 기록, <b>기간</b> 탭에서는 고른 기간 밖의 기록이에요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><path d="M4 15 C16 4 30 18 50 7" stroke="#12A36B" stroke-width="4" fill="none" stroke-linecap="round"/></svg></td>
+      <td><b>초록색 선 = 운동한 구간</b><br>삼성 헬스(갤럭시 워치)에 <b>운동이 기록된 시간</b> 동안 지나간 길만 초록색이 돼요. 그냥 걷는다고 초록색이 되지는 않아요. 워치에서 걷기·달리기·자전거 같은 운동을 시작했거나, 워치가 운동을 자동으로 알아챘을 때만이에요. 설정 → 지도 표시 → <span class="k">운동한 구간을 초록색으로 표시</span>에서 끌 수 있어요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><path d="M4 15 C16 4 30 18 50 7" stroke="#E08A00" stroke-width="3" fill="none" stroke-linecap="round"/></svg></td>
+      <td><b>주황색 선</b> — <b>기간</b> 탭과 하루 리뷰에서, 그 기간에 다닌 길을 진하게 보여 줘요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><circle cx="27" cy="11" r="7" fill="#5B9BE6"/><circle cx="27" cy="11" r="3" fill="#fff"/></svg></td>
+      <td><b>파란 점(가운데 흰색)</b> — 옛 사진에 담긴 위치예요. 선으로 잇지 않고 그 둘레 안개만 걷어요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><circle cx="27" cy="11" r="7" fill="#3B82F6" stroke="#fff" stroke-width="2"/><path d="M27 0 L32 6 L22 6 Z" fill="#3B82F6"/></svg></td>
+      <td><b>파란 동그라미</b> — 지금 내 위치예요. 움직이는 중이면 가는 방향에 화살표가 생겨요.</td></tr>
+    <tr><td class="sw"><svg width="54" height="22"><rect x="6" y="2" width="42" height="18" rx="4" fill="#F5B041" fill-opacity=".45" stroke="#F5B041"/></svg></td>
+      <td><b>주황색으로 칠해진 동네</b> — <b>누적</b> 탭에서 지도를 크게 축소하면, 가 본 시·군·구가 칠해져요. 많이 다닌 곳일수록 진해요.</td></tr>
+    <tr><td class="sw" style="font-size:20px">⭐📷</td>
+      <td><b>추억 아이콘</b> — 내가 남긴 추억이에요. 누르면 글과 사진이 열려요. 설정에서 숨길 수 있어요.</td></tr>
+  </table>
+  <p class="muted">홈페이지 지구본에서는 다닌 길이 노랗게 빛나요. 이동 수단은 속도로 나눠요: 시속 9km 미만은 걷기, 250km 이상은 비행기, 그 사이는 차·기차예요. (설정에서 바꿀 수 있어요)</p>
+
+  <!-- ───────── 시작 ───────── -->
+  <h2 id="start">🚀 처음 시작하기</h2>
+  <ol>
+    <li><b>위치 권한</b>을 허용해요. 앱을 닫아도 기록하려면 <b>'항상 허용'</b>으로 바꿔 주세요.</li>
+    <li>설정 → <b>흔적 기록 방식</b>에서 <span class="k">자동 (항상)</span> 또는 <span class="k">수동 (버튼)</span>을 골라요.</li>
+    <li>설정 → <b>삼성 헬스 연동</b>을 켜면 걸음 수, 운동, 워치의 심박·수면 같은 기록도 함께 봐요.</li>
+    <li>설정 → <b>홈페이지 동기화</b>에서 로그인하면 홈페이지에서도 볼 수 있어요.</li>
+  </ol>
+  <div class="tip">배터리가 걱정되면 <b>5분간 움직임이 없으면 GPS 쉬기</b>를 켜 두세요. 가만히 있는 동안은 GPS를 쉬고, 폰이 움직이면 다시 기록해요.</div>
+
+  <!-- ───────── 앱 ───────── -->
+  <span class="part" id="app">PART 1 · 📱 휴대폰 앱</span>
+
+  <h2 id="appmap">🗺️ 지도 화면</h2>
+  <h3>위쪽 줄</h3>
+  <ul>
+    <li><b>만보기</b> — 사람이 오늘의 걸음 목표를 향해 걸어가요. 목표는 설정에서 바꿔요.</li>
+    <li><b>▶ 하루 리뷰</b> — 하루 동안 다닌 길을 점이 따라가며 다시 보여 줘요. 위의 ◀ ▶로 다른 날을 골라요.</li>
+    <li><b>🎬 여정 영상</b> — 여러 날의 길을 영상처럼 이어 보여 주고, 영상 파일로 저장해요. 저장한 영상은 갤러리의 Movies/Mapory 폴더에 있어요. 쓰는 법은 홈페이지와 같아요 (<a href="#webjourney">여정 영상</a> 참고).</li>
+  </ul>
+  <h3>알림 띠</h3>
+  <ul>
+    <li><b>📅 1년 전 오늘</b> — 그날 기록이 있으면 보여 줘요. (없으면 6개월·한 달·일주일 전) <span class="k">보기</span>를 누르면 그날의 하루 리뷰가 열려요.</li>
+    <li><b>🎁 지난달 결산</b> — 달이 바뀌면 결산이 준비됐다고 알려 줘요.</li>
+    <li><b>🎉 처음 온 곳이에요!</b> — 처음 가 본 동네에 들어서면 알려 줘요.</li>
+  </ul>
+  <h3>오른쪽 아래 버튼</h3>
+  <ul>
+    <li><b>📍 따라가기</b> — 한 번 누르면 지도가 내 위치를 따라가요. 한 번 더 누르면 <b>네비</b> 모드로, 가는 방향이 위로 오게 지도가 돌아가요. 지도를 손으로 움직이면 꺼져요.</li>
+    <li><b>＋ 추억 남기기</b> — 지금 자리에 추억을 남겨요. 지도를 <b>길게 누르면</b> 그 자리에 남길 수 있어요.</li>
+  </ul>
+  <h3>아래쪽 기록 판</h3>
+  <p>판을 올리면(<span class="k">기록 보기</span>) 세 가지 보기를 고를 수 있어요.</p>
+  <table>
+    <tr><td><b>오늘</b></td><td>오늘 다닌 곳만 맑게, 지난 기록은 연하게. 오늘 새로 밝힌 영역, 이동 거리, 추억, 걸음, 운동 횟수가 나와요.</td></tr>
+    <tr><td><b>누적</b></td><td>지금까지 다닌 모든 곳. 축소하면 가 본 동네가 칠해져요.</td></tr>
+    <tr><td><b>기간</b></td><td>이번 주·이번 달·올해·직접 고른 기간. 그 기간의 길이 주황색 선으로 보여요.</td></tr>
+  </table>
+  <p>맨 아래 상태 글자는 <b>기록 중</b>, <b>쉬는 중</b>(GPS 쉬기), <b>기록 꺼짐</b> 중 하나예요. 수동 모드에서는 <span class="k">기록 시작</span> / <span class="k">기록 중지</span> 버튼으로 켜고 꺼요.</p>
+
+  <h2 id="appmem">📷 추억</h2>
+  <ul>
+    <li>추억에는 <b>아이콘, 제목, 글, 사진, 영상</b>을 넣을 수 있어요. 아이콘은 지도에 그대로 보여요.</li>
+    <li><b>추억</b> 탭은 달마다 모아 보는 앨범이에요. 누르면 자세히 보고, 고치거나 지우거나, <span class="k">지도에서 보기</span>로 그 자리로 가요.</li>
+    <li>홈페이지에 올라가는 사진은 긴 변 1,600px로 줄이고, 영상은 첫 장면만 올라가요.</li>
+  </ul>
+
+  <h2 id="appstats">📊 통계</h2>
+  <table>
+    <tr><td><b>탐험</b></td><td>지구에서 밝힌 넓이, 탐험 레벨, 동네 정복(가 본 시·군·구), 나라·지역 달성률.</td></tr>
+    <tr><td><b>이동</b></td><td>모두 몇 km를 다녔는지, 지구 몇 바퀴·달까지 얼마인지, 걷기·차·비행기 비율, 남긴 추억 수.</td></tr>
+    <tr><td><b>운동</b></td><td>삼성 헬스의 걸음 수, 걸음 칼로리, 운동 종류별 횟수와 시간.</td></tr>
+    <tr><td><b>배지</b></td><td>거리·넓이·동네·추억·연속 기록 같은 목표를 채우면 배지를 받아요.</td></tr>
+    <tr><td><b>장소</b></td><td>한자리(120m 안)에 10분 넘게 머문 곳을 모아요. 집·회사처럼 이름을 붙일 수 있어요.</td></tr>
+    <tr><td><b>결산</b></td><td>달마다 / 한 해의 결산 카드. <span class="k">이미지로 저장</span>하면 갤러리의 Mapory 폴더에 들어가요.</td></tr>
+  </table>
+
+  <h2 id="appset">⚙️ 설정</h2>
+  <table>
+    <tr><td><b>흔적 기록 방식</b></td><td>자동(항상) / 수동(버튼), GPS 쉬기, 위치 권한 '항상 허용' 안내.</td></tr>
+    <tr><td><b>이동 수단</b></td><td>걷기와 비행기를 나누는 속도 기준. 바꾸면 그 뒤 기록부터 적용돼요. <b>신호가 끊긴 구간 이어서 밝히기</b>는 터널·비행기처럼 GPS가 끊긴 곳의 앞뒤를 이어요.</td></tr>
+    <tr><td><b>지도 표시</b></td><td>하루 리뷰 버튼, 추억 아이콘, 운동 구간 초록색, 동네 색칠을 켜고 꺼요.</td></tr>
+    <tr><td><b>만보기 목표</b></td><td>하루 걸음 목표.</td></tr>
+    <tr><td><b>삼성 헬스 연동</b></td><td>권한 설정, <span class="k">건강 기록 점검</span>(어떤 기록이 들어오고 있는지 확인).</td></tr>
+    <tr><td><b>안개 색 · 짙기</b></td><td>흰 안개, 밤, 새벽 보라, 노을, 숲, 바다 중에서 고르고 짙기를 조절해요.</td></tr>
+    <tr><td><b>홈페이지 동기화</b></td><td>로그인, 와이파이에서만 자동 동기화, <span class="k">지금 동기화</span>.</td></tr>
+    <tr><td><b>옛 사진 위치</b></td><td>갤러리 사진의 위치와 찍은 날짜만 읽어서, Mapory 전에 다녀간 곳의 안개를 걷어요. 사진 파일은 밖으로 나가지 않아요.</td></tr>
+    <tr><td><b>백업</b></td><td>흔적·글·사진·영상을 파일 하나로 저장하고, 폰을 바꿀 때 가져오기로 되살려요. 가져오면 지금 폰의 기록이 백업 내용으로 <b>모두 바뀌어요</b>.</td></tr>
+    <tr><td><b>사용 설명서</b></td><td>지금 보고 있는 이 설명서예요.</td></tr>
+  </table>
+  <div class="tip">홈 화면 <b>위젯</b>을 놓으면 오늘의 기록을 앱을 열지 않고도 볼 수 있어요. (홈 화면을 길게 누름 → 위젯 → Mapory)</div>
+
+  <!-- ───────── 홈페이지 ───────── -->
+  <span class="part" id="web">PART 2 · 💻 홈페이지</span>
+  <p class="muted">왼쪽 메뉴에서 화면을 골라요. 맨 위 <b>Mapory</b> 글자를 누르면 첫 화면으로 돌아와요. 메뉴 아래쪽에서 서버 사용량, 화면 테마(다크·라이트·우주), 이 설명서를 볼 수 있어요.</p>
+
+  <h2 id="webhome">🏠 첫 화면 · 🗺️ 지도 · 🪞 비교</h2>
+  <h3>첫 화면</h3>
+  <p>돌아가는 지구 둘레에 지금까지 걸은 거리가 몇 바퀴인지 보여 주고, 달까지·태양계 행성까지 얼마나 왔는지 재미로 견주어 봐요. 달력에서 날짜를 누르면 그날의 지도로 가요.</p>
+  <h3>지도</h3>
+  <ul>
+    <li><b>누적 / 기간</b>과 <b>연도 버튼</b>으로 볼 기간을 골라요. <span class="k">전체</span>는 기록이 있는 모든 날이에요.</li>
+    <li><span class="k">▶ 타임랩스</span> — 날짜순으로 안개가 걷혀 가는 모습을 보여 줘요.</li>
+    <li><span class="k">🌍 지구본</span> — 지구를 끌어 돌려 봐요. 다닌 길이 노랗게 빛나요.</li>
+    <li><span class="k">📷 사진 지도</span> — 사진이 있는 추억을 지도 위에 사진으로 띄워요.</li>
+    <li><b>추억 아이콘 보이기</b>, <b>안개 색</b>도 여기서 바꿔요.</li>
+  </ul>
+  <h3>나란히 비교</h3>
+  <p>이번 달 vs 지난달, 올해 vs 작년, 이번 주 vs 지난주를 지도 두 장으로 나란히 봐요.</p>
+
+  <h2 id="webjourney">🎬 여정 영상</h2>
+  <p>고른 기간 동안 다닌 길을 점이 따라가며 그려요. 동네 안에서는 가까이, 다른 도시·나라로 갈 때는 멀어졌다가 다시 다가가요.</p>
+  <ol>
+    <li><b>기간</b>: 전체, 연도, 이번 달, 최근 30일, 또는 날짜를 직접 골라요.</li>
+    <li><b>재생 길이</b>: 15초 ~ 10분. 길수록 화면이 천천히 움직여 덜 어지러워요.</li>
+    <li><b>카메라</b>: <i>하루 크기에 맞춤</i>(그날 다닌 넓이에 맞춰 확대) / 동네 / 도시 / 나라 / 전체 고정.</li>
+    <li>선택: <b>장거리 이동은 빨리 넘기기</b>, <b>속도 표시</b>, <b>이동 수단 아이콘</b>(🚶🚗✈️ 속도에 따라 바뀜).</li>
+    <li>모양: 평면 지도 / 지구본, 이름, 제목 형식, 선 색.</li>
+    <li><span class="k">▶ 재생</span> 또는 <span class="k">⏺ 영상으로 저장</span>. 재생 중에는 아래 막대를 끌어서 원하는 때로 옮기고, 일시정지할 수 있어요.</li>
+  </ol>
+  <p class="muted">여정 영상에는 앱의 GPS 기록과 구글 타임라인만 들어가요. 옛 사진 위치는 안개만 걷고 영상에는 넣지 않아요.</p>
+
+  <h2 id="webstats">📊 통계 · 📔 추억 앨범 · 🩺 헬스체크</h2>
+  <h3>통계</h3>
+  <p>앱 기록에 구글 타임라인과 사진 위치까지 합쳐서 계산해요. 탭: <b>요약 · 해마다 · 나라 · 대한민국 · 배지 · 자주 가는 곳</b>. 배지는 섹션별로 170개가 넘어요.</p>
+  <h3>추억 앨범</h3>
+  <p>모든 추억을 큰 화면으로 넘겨 봐요. 누르면 크게 보고 <span class="k">지도에서 보기</span>로 그 자리로 가요.</p>
+  <h3>헬스체크</h3>
+  <p>갤럭시 워치 → 삼성 헬스 → 헬스 커넥트 → Mapory 앱을 거쳐 하루 요약이 올라와요.</p>
+  <table>
+    <tr><td><b>오늘의 컨디션</b></td><td>수면·심박·걸음을 모아 본 오늘의 상태.</td></tr>
+    <tr><td><b>걸음</b></td><td>목표 달성 링, 30일 막대, 요일별·달별 평균.</td></tr>
+    <tr><td><b>수면</b></td><td>수면 단계(깊은·얕은·렘·깸) 그래프와 점수.</td></tr>
+    <tr><td><b>심장</b></td><td>평균·최저·최고 심박, 시간대별 심박, 안정 시 심박, 심박 변이도, 산소포화도.</td></tr>
+    <tr><td><b>몸</b></td><td>몸무게, 체지방, 골격근 등 체성분, 혈압.</td></tr>
+    <tr><td><b>운동</b></td><td>운동 기록, 활동 칼로리, 오른 층수.</td></tr>
+  </table>
+  <p class="muted">건강 수치는 기록을 보기 쉽게 정리한 것이고, 진단이 아니에요.</p>
+
+  <h2 id="webtools">🧰 만들기 도구</h2>
+  <table>
+    <tr><td><b>🖼️ 포스터 지도</b></td><td>다닌 길을 액자용 고화질 그림으로. 모양(A3·A2, 8×10, 정사각형, 휴대폰 배경), 테마, 제목, 화질(인쇄용 6,000px)을 골라요.</td></tr>
+    <tr><td><b>📕 결산 책</b></td><td>한 해의 지도·숫자·달마다의 길·추억을 책처럼 엮어요. <span class="k">인쇄 · PDF로 저장</span>에서 대상을 'PDF로 저장', 여백 '없음', 배경 그래픽 켜기.</td></tr>
+    <tr><td><b>🔍 깊이 분석</b></td><td>자주 다닌 곳일수록 붉어지는 지도. 기간·요일(평일/주말)을 바꾸고, 자주 간 곳 순위와 CSV를 받아요.</td></tr>
+    <tr><td><b>📍 여행 계획</b></td><td>가고 싶은 곳을 찍어 두면, 나중에 실제로 지나갈 때 저절로 '가 본 곳'이 돼요.</td></tr>
+    <tr><td><b>🗂️ 추억 정리</b></td><td>추억을 고치거나, 여러 개를 골라 아이콘을 한꺼번에 바꾸거나 지워요. 다음 앱 동기화 때 폰에도 반영돼요.</td></tr>
+  </table>
+
+  <h2 id="webdata">📥 옛 기록 불러오기 · 💾 백업</h2>
+  <h3>옛 기록 불러오기</h3>
+  <ul>
+    <li><b>구글 타임라인</b>: 휴대폰 설정 → 위치 → 타임라인 → <i>타임라인 내보내기</i>로 받은 Timeline.json(또는 예전 테이크아웃 파일)을 골라요. 날마다 시간순으로 이어서 길이 돼요.</li>
+    <li><b>옛 사진 위치</b>: 사진 폴더를 고르면 위치만 읽어 와요. 앱의 '옛 사진 위치'와 같은 역할이에요.</li>
+    <li>지도의 <b>주황 점</b>(사진 위치)을 누르면 하나씩 지울 수 있어요. 받은 사진처럼 내가 가지 않은 곳을 정리할 때 써요.</li>
+  </ul>
+  <h3>백업</h3>
+  <ul>
+    <li><b>서버 사용량</b>: 무료 한도(데이터베이스 500MB, 파일 1GB) 중 얼마나 썼는지 보여 줘요. 메뉴 아래쪽에서도 보여요.</li>
+    <li><b>전체 백업</b>(zip 하나, 사진 포함 선택), <b>GPX</b>(다른 지도 앱용), <b>CSV</b>(엑셀용)로 내려받아요.</li>
+  </ul>
+  <div class="tip">한 달에 한 번쯤 <b>전체 백업</b>을 받아 두면, 서버나 폰에 문제가 생겨도 기록을 지킬 수 있어요.</div>
+
+  <!-- ───────── 질문 ───────── -->
+  <h2 id="faq">❓ 자주 묻는 질문</h2>
+  <details><summary>오늘 지도의 초록색 선은 걸은 길인가요?</summary>
+    <p>아니요. <b>삼성 헬스에 운동으로 기록된 시간</b> 동안 지나간 길이에요. 평소에 걸은 길은 안개만 걷히고 선은 없어요. 워치에서 운동을 시작하거나, 워치가 10분 넘는 걷기·달리기를 운동으로 자동 인식하면 그 구간이 초록색이 돼요.</p></details>
+  <details><summary>길이 중간중간 끊겨서 기록돼요.</summary>
+    <p>설정에서 위치 권한을 <b>'항상 허용'</b>으로, 휴대폰 설정 → 배터리에서 Mapory를 <b>'제한 없음'</b>으로 바꿔 주세요. 터널·비행기처럼 신호가 없는 곳은 <b>신호가 끊긴 구간 이어서 밝히기</b>로 이어져요.</p></details>
+  <details><summary>홈페이지에 오늘 기록이 안 보여요.</summary>
+    <p>앱은 6시간마다 올려요. 바로 보고 싶으면 앱 설정 → 홈페이지 동기화 → <span class="k">지금 동기화</span>를 누르고 홈페이지를 새로 고쳐 주세요. '와이파이에서만'을 켜 두었다면 와이파이에 연결돼 있어야 해요.</p></details>
+  <details><summary>워치의 수면·몸무게가 헬스체크에 안 들어와요.</summary>
+    <ol>
+      <li>삼성 헬스 앱 → 설정 → <b>헬스 커넥트</b>에서 삼성 헬스가 기록을 <b>쓸 수 있게</b> 모두 허용해 주세요.</li>
+      <li>삼성 헬스는 헬스 커넥트에 늦게 옮겨 적어요. 수면은 자고 일어난 뒤, 다른 기록도 하루쯤 걸릴 수 있어요.</li>
+      <li>쓰기 권한을 켜기 전에 잰 몸무게는 안 넘어올 수 있어요. 한 번 다시 재 보세요.</li>
+      <li>앱 설정의 <span class="k">건강 기록 점검</span>을 누르면 종류별로 최근 7일 동안 몇 개가 들어왔는지 보여요.</li>
+    </ol>
+    <p class="muted">Mapory는 동기화할 때마다 최근 사흘 치를 다시 읽어서, 늦게 들어온 기록도 올려요.</p></details>
+  <details><summary>받은 사진 때문에 가 본 적 없는 곳이 밝혀졌어요.</summary>
+    <p>홈페이지 → <b>옛 기록 불러오기</b>에서 그 주황 점을 눌러 지우세요. 다음 동기화 때 앱에서도 사라져요.</p></details>
+  <details><summary>폰을 바꿀 때는 어떻게 하나요?</summary>
+    <p>옛 폰: 설정 → 백업 → 백업 파일 만들기 → 새 폰으로 파일을 옮김 → 새 폰: 설정 → 백업 → 가져오기. 홈페이지 동기화도 다시 로그인해 주세요.</p></details>
+  <details><summary>배터리를 너무 많이 써요.</summary>
+    <p><b>GPS 쉬기</b>를 켜고, 꼭 필요할 때만 기록하려면 <b>수동 (버튼)</b>으로 바꿔요. 자동 모드는 GPS를 계속 쓰기 때문에 배터리가 평소보다 빨리 줄어요.</p></details>
+  <details><summary>내 기록은 누가 볼 수 있나요?</summary>
+    <p>나만 볼 수 있어요. 서버는 로그인한 본인의 기록만 읽고 쓰게 막혀 있고, 새 가입도 닫혀 있어요. 원본 사진·영상은 폰에만 있어요.</p></details>
+
+  <p class="muted" style="margin-top:30px;text-align:center">Mapory · 다녀간 만큼 밝아지는 지도</p>
+</div>
+</body>
+</html>
