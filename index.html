@@ -1503,6 +1503,8 @@ function jTitleText(P, i, km) {
   const name = jcfg.name.trim() || '나';
   const t = (jcfg.title || '{year} {name}의 Mapory').replace('{year}', y0).replace('{name}', name);
   const d = P.day[Math.min(i, P.n - 1)];
+  // 하루만 볼 때는 날짜와 요일까지
+  if (jcfg.from === jcfg.to) return [t, `${+d.slice(5, 7)}월 ${+d.slice(8, 10)}일 (${'일월화수목금토'[new Date(d + 'T00:00:00').getDay()]}) · ${fmtDist(km)}`];
   return [t, `${+d.slice(0, 4)}년 ${+d.slice(5, 7)}월 · ${fmtDist(km)}`];
 }
 function setJTitle(a, b) { $('jT1').textContent = a; $('jT2').textContent = b; }
