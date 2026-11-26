@@ -15,6 +15,7 @@ export function setup(ctx) {
   addPage('workshop', '🗂️ 추억 정리', workshopHtml(), { init: initWorkshop, show: () => { renderWsList(); ws?.map?.resize(); } });
   addPage('import', '📥 옛 기록 불러오기', importHtml(), { init: initImport, show: renderImportState });
   addPage('backup', '💾 백업', backupHtml(), { init: initBackup, show: () => { renderBackupInfo(); loadUsage(); } });
+  addPage('apps', '🛍️ 앱 보관함', appsHtml(), { init: renderApps, show: renderApps });
   initUsage();
 }
 
@@ -1389,4 +1390,57 @@ async function backupAll() {
   } catch (e) {
     $('bkMsg').textContent = '백업하지 못했어요: ' + (e.message || e);
   } finally { btn.disabled = false; setTimeout(() => $('bkProg').classList.add('hidden'), 2000); }
+}
+
+
+// ───────── 앱 보관함 (내 앱스토어) ─────────
+function appsHtml() {
+  return `<div class="scroll" style="max-width:820px">
+    <h2 style="margin:0 0 4px">🛍️ 앱 보관함</h2>
+    <p class="muted" style="margin:0 0 16px">내가 만든 앱을 가족과 함께 받는 곳이에요. 로그인한 계정만 볼 수 있어요.</p>
+    <div class="card" id="appsGuide" style="margin-bottom:14px">
+      <b>처음 설치하는 법</b>
+      <ol style="margin:8px 0 0;padding-left:20px;line-height:1.8">
+        <li>휴대폰에서 이 페이지를 열고 <b>내 앱스토어</b>의 <b>받기</b>를 눌러 설치해요. (출처를 알 수 없는 앱 설치를 허용해 주세요)</li>
+        <li>내 앱스토어를 열고 같은 계정으로 로그인해요.</li>
+        <li>그다음부터는 내 앱스토어에서 다른 앱을 받고, 새 버전이 나오면 알림이 와요.</li>
+      </ol>
+    </div>
+    <div id="appsList" style="display:grid;gap:12px"></div>
+  </div>`;
+}
+async function renderApps() {
+  const box = $('appsList'); if (!box) return;
+  const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const size = (b) => b >= 1e6 ? (b / 1e6).toFixed(1) + 'MB' : Math.round(b / 1e3) + 'KB';
+  let list;
+  if (C.DEMO) list = [
+    { pkg: 'app.mystore', name: '내 앱스토어', emoji: '🛍️', color: '#7FB6F2', description: '우리 가족 앱을 받고 업데이트하는 앱', version_name: '1.0', size_bytes: 9.8e6, updated_at: new Date().toISOString(), notes: '' },
+    { pkg: 'app.mapory', name: 'Mapory', emoji: '🗺️', color: '#F5B041', description: '다녀간 만큼 안개가 걷히는 지도 일기장', version_name: '0.39', size_bytes: 31.2e6, updated_at: new Date().toISOString(), notes: 'GPS 끊긴 구간은 잇지 않음' },
+  ];
+  else {
+    box.innerHTML = '<p class="muted">불러오는 중…</p>';
+    const { data, error } = await C.sb.from('app_catalog').select('*').eq('hidden', false).order('sort').order('name');
+    if (error) { box.innerHTML = `<div class="card"><b>아직 준비가 안 됐어요.</b><p class="muted" style="margin:6px 0 0">서버에 앱 목록 표가 없어요. Supabase SQL Editor에서 upgrade-6.sql을 실행해 주세요.<br>(${esc(error.message)})</p></div>`; return; }
+    list = data || [];
+  }
+  if (!list.length) { box.innerHTML = '<div class="card"><p class="muted" style="margin:0">아직 올라온 앱이 없어요. GitHub에 SUPABASE_SERVICE_KEY 비밀 값을 넣으면 다음 빌드부터 여기에 올라와요.</p></div>'; return; }
+  box.innerHTML = list.map((a) => `<div class="card" style="flex-direction:row;gap:14px;align-items:center">
+      <div style="width:56px;height:56px;border-radius:14px;display:grid;place-items:center;font-size:30px;flex:none;background:${esc(a.color)}33">${esc(a.emoji)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:17px">${esc(a.name)} <span class="muted" style="font-weight:400;font-size:13px">${esc(a.version_name)} · ${size(a.size_bytes || 0)}</span></div>
+        <div class="muted" style="font-size:13px">${esc(a.description)}</div>
+        ${a.notes ? `<div style="font-size:12px;margin-top:4px">바뀐 점: ${esc(a.notes)}</div>` : ''}
+        <div class="muted" style="font-size:11px;margin-top:2px">${new Date(a.updated_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })} 올림</div>
+      </div>
+      <button class="btn primary" data-apk="${esc(a.apk_path || '')}" data-name="${esc(a.pkg)}.apk">받기</button>
+    </div>`).join('');
+  box.querySelectorAll('button[data-apk]').forEach((b) => b.onclick = async () => {
+    if (C.DEMO) return alertDlg('체험 모드에서는 받을 수 없어요.');
+    b.disabled = true; b.textContent = '준비 중…';
+    const { data, error } = await C.sb.storage.from('apps').createSignedUrl(b.dataset.apk, 600, { download: b.dataset.name });
+    b.disabled = false; b.textContent = '받기';
+    if (error) return alertDlg('파일을 받지 못했어요: ' + error.message);
+    location.href = data.signedUrl;
+  });
 }
