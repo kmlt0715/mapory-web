@@ -1393,7 +1393,7 @@ async function backupAll() {
 }
 
 
-// ───────── 앱 보관함 (내 앱스토어) ─────────
+// ───────── 앱 보관함 (영스토어) ─────────
 function appsHtml() {
   return `<div class="scroll" style="max-width:820px">
     <h2 style="margin:0 0 4px">🛍️ 앱 보관함</h2>
@@ -1401,9 +1401,9 @@ function appsHtml() {
     <div class="card" id="appsGuide" style="margin-bottom:14px">
       <b>처음 설치하는 법</b>
       <ol style="margin:8px 0 0;padding-left:20px;line-height:1.8">
-        <li>휴대폰에서 이 페이지를 열고 <b>내 앱스토어</b>의 <b>받기</b>를 눌러 설치해요. (출처를 알 수 없는 앱 설치를 허용해 주세요)</li>
-        <li>내 앱스토어를 열고 같은 계정으로 로그인해요.</li>
-        <li>그다음부터는 내 앱스토어에서 다른 앱을 받고, 새 버전이 나오면 알림이 와요.</li>
+        <li>휴대폰에서 이 페이지를 열고 <b>영스토어</b>의 <b>받기</b>를 눌러 설치해요. (출처를 알 수 없는 앱 설치를 허용해 주세요)</li>
+        <li>영스토어를 열고 같은 계정으로 로그인해요.</li>
+        <li>그다음부터는 영스토어에서 다른 앱을 받고, 새 버전이 나오면 알림이 와요.</li>
       </ol>
     </div>
     <div id="appsList" style="display:grid;gap:12px"></div>
@@ -1415,7 +1415,7 @@ async function renderApps() {
   const size = (b) => b >= 1e6 ? (b / 1e6).toFixed(1) + 'MB' : Math.round(b / 1e3) + 'KB';
   let list;
   if (C.DEMO) list = [
-    { pkg: 'app.mystore', name: '내 앱스토어', emoji: '🛍️', color: '#7FB6F2', description: '권영진이 만든 앱을 찾고 받고 최신으로 유지하는 앱스토어', version_name: '1.0', size_bytes: 9.8e6, updated_at: new Date().toISOString(), notes: '' },
+    { pkg: 'app.mystore', name: '영스토어', emoji: '🛍️', color: '#7FB6F2', description: '권영진이 만든 앱을 찾고 받고 최신으로 유지하는 앱스토어', version_name: '1.0', size_bytes: 9.8e6, updated_at: new Date().toISOString(), notes: '' },
     { pkg: 'app.mapory', name: 'Mapory', emoji: '🗺️', color: '#F5B041', description: '다녀간 만큼 안개가 걷히는 지도 일기장', version_name: '0.39', size_bytes: 31.2e6, updated_at: new Date().toISOString(), notes: 'GPS 끊긴 구간은 잇지 않음' },
   ];
   else {
