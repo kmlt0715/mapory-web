@@ -422,7 +422,7 @@
         <span class="muted" id="jMsg"></span>
       </div>
       <canvas id="jProf" class="hidden" style="position:absolute;left:50%;transform:translateX(-50%);bottom:92px;width:min(560px,calc(100% - 40px));height:70px;pointer-events:none;z-index:3"></canvas>
-      <div class="float hidden" id="jCtl"><button class="btn" id="jPause" aria-label="일시정지" style="width:46px;padding:0">⏸</button><input type="range" id="jSeek" min="0" max="1000" step="1" value="0" aria-label="재생 위치"><span class="muted" id="jTime" style="font-variant-numeric:tabular-nums;white-space:nowrap">0:00 / 0:00</span><button class="btn" id="jStop">멈추기</button></div>
+      <div class="float hidden" id="jCtl"><button class="btn" id="jPause" aria-label="일시정지" style="width:46px;padding:0">⏸</button><button class="btn" id="jView" aria-label="구도 바꾸기" style="padding:0 10px">🎥 자동</button><input type="range" id="jSeek" min="0" max="1000" step="1" value="0" aria-label="재생 위치"><span class="muted" id="jTime" style="font-variant-numeric:tabular-nums;white-space:nowrap">0:00 / 0:00</span><button class="btn" id="jStop">멈추기</button></div>
     </div>
 
     <!-- 나란히 비교 -->
@@ -1552,6 +1552,16 @@ function initJourney() {
     jPreview(true);
   });
   jmap.on('render', jRecFrame);
+  // 재생 중 구도 바꾸기: 두 손가락으로 돌리기·기울이기, 벌려서 확대. 손을 떼면 그 차이를 기억해서 계속 따라감
+  try { jmap.dragRotate.enable(); jmap.touchZoomRotate.enableRotation(); jmap.touchPitch.enable(); jmap.keyboard.enableRotation(); } catch (e) {}
+  jmap.on('movestart', (e) => { if (J && e.originalEvent) J.touching = true; });
+  jmap.on('moveend', (e) => {
+    if (!J || !J.touching) return;
+    J.touching = false;
+    J.uz = jmap.getZoom() - J.zoom - (J.vz || 0);
+    J.up = jmap.getPitch() - (J.vp ?? J.pitch);
+    J.ub = angDiff(J.bear, jmap.getBearing());
+  });
 
   // 설정 칸 채우기
   const t = dayOf(Date.now());
@@ -1593,6 +1603,7 @@ function initJourney() {
   $('jSeek').oninput = () => { if (J) jSeek(+$('jSeek').value / 1000 * jcfg.dur); };
   $('jSeek').onpointerdown = () => { if (J) J.dragging = true; };
   $('jSeek').onpointerup = $('jSeek').onpointercancel = () => { if (J) J.dragging = false; };
+  $('jView').onclick = () => { if (!J) return; jSetView(((J.view || 0) + 1) % JVIEWS.length); };
   $('jPlay').onclick = () => jStart(false);
   $('jRec').onclick = () => jStart(true);
   $('jStop').onclick = () => jEnd(true);
@@ -1625,6 +1636,20 @@ function bearingOf(a, b) {
   return Math.atan2(y, x) / r;
 }
 const angDiff = (from, to) => ((to - from + 540) % 360) - 180;
+// 구도: [이름, 기울기(없으면 자동), 확대 차이]
+const JVIEWS = [['🎥 자동', null, 0], ['🎥 위에서', 0, -0.3], ['🎥 낮게', 72, 0.8], ['🎥 멀리', 40, -2.2], ['🎥 가까이', 60, 1.8]];
+function jSetView(k) {
+  if (!J) return;
+  J.view = k; J.vp = JVIEWS[k][1]; J.vz = JVIEWS[k][2];
+  J.uz = 0; J.up = 0; J.ub = 0;                         // 손으로 바꾼 것도 초기화
+  $('jView').textContent = JVIEWS[k][0];
+}
+/** 자동 카메라 + 고른 구도 + 손으로 바꾼 만큼 */
+function jCamGo(center) {
+  if (J.touching) return;                               // 손가락으로 움직이는 중에는 그대로 둠
+  const pitch = Math.max(0, Math.min(75, (J.vp ?? J.pitch ?? 0) + (J.up || 0)));
+  jmap.jumpTo({ center, zoom: J.zoom + (J.vz || 0) + (J.uz || 0), pitch, bearing: (J.bear || 0) + (J.ub || 0) });
+}
 
 /** 높이 벽 (k까지). 그날 가장 낮은 곳을 바닥으로, 오른 만큼 벽이 높아지고 색도 초록→주황→빨강 */
 function wallFC(P, upto) {
@@ -1725,6 +1750,7 @@ function jStart(record) {
   if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: 0, bearing: 0 });
   if (record) recStart();
   // 영상으로 저장하는 동안에는 위치를 옮기거나 멈출 수 없음
+  jSetView(0);
   $('jPause').textContent = '⏸'; $('jPause').disabled = !!record; $('jSeek').disabled = !!record; $('jSeek').value = 0;
   requestAnimationFrame(jTick);
 }
@@ -1824,7 +1850,7 @@ function jTick(now) {
         const aim = J.zoom > tz + 0.4 ? head : Z.c;
         J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], aim[0]) * k), J.cam[1] + (aim[1] - J.cam[1]) * k];
         J.hopStart = J.zoom;
-        jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch, bearing: J.bear });
+        jCamGo(J.cam);
         J.prevHead = head;
       } else {
       const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
@@ -1836,7 +1862,7 @@ function jTick(now) {
       J.hopStart = J.zoom;
       }
     }
-    if (!(jcfg.cam === 'auto' && !J.inHop)) jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch, bearing: J.bear });
+    if (!(jcfg.cam === 'auto' && !J.inHop)) jCamGo(J.cam);
   }
   J.prevHead = head;
   if (J.t >= jcfg.dur && !J.paused && !J.dragging) {
@@ -1864,7 +1890,7 @@ function jSeek(t) {
     J.zoom = camZoom(P, i); J.hopStart = J.zoom; J.speed = 0; J.inHop = false;
     J.cam = jcfg.cam === 'auto' ? [...P.zones[P.zoneOf[i]].c] : [...head];
     J.prevHead = head;
-    jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch || 0, bearing: J.bear || 0 });
+    jCamGo(J.cam);
   }
 }
 
