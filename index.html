@@ -1663,7 +1663,7 @@ function jCamGo(center) {
   jmap.jumpTo({ center, zoom: J.zoom + (J.vz || 0) + (J.uz || 0), pitch, bearing: (J.bear || 0) + (J.ub || 0) });
 }
 
-const FLY_ALT = 10000, FP_EYE = 35;
+const FLY_ALT = 10000, FP_EYE = 70, FP_EXAG = 1.3;   // 1인칭: 눈높이 70m, 산은 실제에 가깝게(1.3배)
 const smooth01 = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 /** 비행 구간에서 지나간 비율(gg)에 따른 높이: 약 200km 동안 올라가고 내려옴. 짧은 비행은 낮게 */
 const flyAltAt = (gg, d) => { const c = Math.max(0.05, Math.min(0.35, 200000 / Math.max(1, d))); return Math.min(FLY_ALT, d / 30) * Math.min(smooth01(gg / c), smooth01((1 - gg) / c)); };
@@ -1695,15 +1695,25 @@ function skyFC(P, upto, gNow) {
 function jVisible() { const pg = document.getElementById('page-journey'); return !pg || !pg.classList.contains('hidden'); }
 function jFpHint() {
   let el = document.getElementById('jFpHint');
-  if (!J || !J.fp) { if (el) el.remove(); return; }
+  if (!J || !J.fp) { if (el) el.remove(); document.getElementById('jFpPad')?.remove(); return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'jFpHint';
-    el.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:110px;z-index:5;background:rgba(20,27,36,.88);color:#F3EFE6;border-radius:14px;padding:8px 14px;font-size:13px;line-height:1.5;text-align:center;pointer-events:none;max-width:calc(100% - 24px)';
+    el.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:110px;z-index:5;background:rgba(20,27,36,.9);color:#F3EFE6;border-radius:14px;padding:8px 14px;font-size:13px;line-height:1.5;text-align:center;max-width:calc(100% - 24px)';
     jmap.getContainer().parentElement.appendChild(el);
+    // 마우스·손가락용 둘러보기 단추
+    const pad = document.createElement('div'); pad.id = 'jFpPad';
+    pad.style.cssText = 'position:absolute;right:16px;bottom:96px;z-index:5;display:grid;grid-template-columns:repeat(3,48px);gap:6px';
+    const B = (label, fn, area) => { const b = document.createElement('button'); b.textContent = label; b.className = 'btn'; b.style.cssText = `height:48px;padding:0;font-size:18px;grid-area:${area}`; let t = 0; const go = () => { fn(); jFpHint(); t = setTimeout(go, 120); }; b.onpointerdown = (e) => { e.preventDefault(); go(); }; b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(t); pad.appendChild(b); };
+    B('▲', () => jFpLook(0, 4), '1/2'); B('◀', () => jFpLook(-6, 0), '2/1'); B('⏯', () => {}, '2/2'); B('▶', () => jFpLook(6, 0), '2/3'); B('▼', () => jFpLook(0, -4), '3/2');
+    B('🐢', () => jFpSpeed(1 / 1.15), '3/1'); B('🐇', () => jFpSpeed(1.15), '3/3');
+    pad.children[2].onpointerdown = (e) => { e.preventDefault(); $('jPause').onclick(); };
+    jmap.getContainer().parentElement.appendChild(pad);
   }
   const v = J.fpSpd < 10 ? J.fpSpd.toFixed(1) : Math.round(J.fpSpd);
-  el.innerHTML = `<b>👀 1인칭 시점</b> · 초당 ${v}m (${Math.round(J.fpSpd * 3.6)}km/h)<br>↑↓ 빠르기 · ←→ 또는 끌어서 둘러보기 · P 멈춤 · 스페이스 나가기`;
+  el.innerHTML = `<b>👀 1인칭 시점</b> · 시속 ${Math.round(J.fpSpd * 3.6)}km${J.waiting ? ' · <span style="color:#FFD27A">지도를 그리는 중… 잠시 멈춰요</span>' : ''}<br>방향키 ←→↑↓ 둘러보기 · +/− 빠르기 · P 멈춤 · 스페이스 나가기`;
 }
+function jFpLook(dy, dp) { if (!J) return; J.ub = (J.ub || 0) + dy; J.up = Math.max(-60, Math.min(12, (J.up || 0) + dp)); }
+function jFpSpeed(k) { if (!J) return; J.fpSpd = Math.max(1, Math.min(3000, J.fpSpd * k)); }
 function jFpToggle(on) {
   if (!J) { if (!JP) return; jStart(false); }
   if (!J) return;
@@ -1714,7 +1724,8 @@ function jFpToggle(on) {
     J.fpSave = { d3: jcfg.d3, globe: jcfg.globe };
     jcfg.d3 = true; jcfg.globe = false; jSetProjection();
     try { jmap.setCenterClampedToGround(false); } catch (e) {}
-    J.fp = true; J.fpD = P.D[Math.max(0, J.idx - 1)]; J.fpSpd = J.fpSpd || 20; J.fpGe = null; J.fpBear = J.bear || 0;
+    J.fp = true; J.fpD = P.D[Math.max(0, J.idx - 1)]; J.fpSpd = J.fpSpd || 8; J.fpGe = null; J.fpBear = J.bear || 0;
+    try { jmap.setTerrain({ source: 'j-dem', exaggeration: FP_EXAG }); } catch (e) {}
     J.ub = 0; J.up = 0; J.uz = 0;
   } else jFpOff();
   jFpHint();
@@ -1738,22 +1749,30 @@ function jFpCam(P, i, a, b, head, isHop, g, dt) {
     if (distM(head[1], head[0], P.pts[k][1], P.pts[k][0]) > 3) want = bearingOf(head, P.pts[k]);
   }
   J.fpBear += angDiff(J.fpBear, want) * (1 - Math.pow(0.3, dt));
-  let ge = 0;
-  try { if (jmap.terrain) ge = jmap.terrain.getElevationForLngLat(maplibregl.LngLat.convert(head), jmap.transform) || 0; } catch (e) {}
-  J.fpGe = J.fpGe == null ? ge : J.fpGe + (ge - J.fpGe) * (1 - Math.pow(0.02, dt));
+  const elev = (p) => { try { return jmap.terrain ? (jmap.terrain.getElevationForLngLat(maplibregl.LngLat.convert(p), jmap.transform) || 0) : 0; } catch (e) { return 0; } };
+  // 지금 자리와 앞쪽 몇 곳 중 가장 높은 땅보다 위에 있도록 (언덕에 박히지 않게)
+  let ge = elev(head);
+  if (!isHop) for (const ahead of [30, 70, 120]) {
+    const r = J.fpBear * Math.PI / 180, c = Math.cos(head[1] * Math.PI / 180);
+    ge = Math.max(ge, elev([head[0] + Math.sin(r) * ahead / 111320 / c, head[1] + Math.cos(r) * ahead / 111320]));
+  }
+  if (J.fpGe == null || ge > J.fpGe) J.fpGe = ge;                       // 올라갈 때는 바로
+  else J.fpGe += (ge - J.fpGe) * (1 - Math.pow(0.3, dt));               // 내려갈 때는 부드럽게
   const alt = J.fpGe + (isHop ? Math.max(FP_EYE, flyAltAt(g, P.hop[i])) : FP_EYE);
   if (J.touching) return;
-  const pitch = Math.max(20, Math.min(85, (isHop ? 74 : 78) + (J.up || 0)));
+  const pitch = Math.max(20, Math.min(85, (isHop ? 72 : 74) + (J.up || 0)));
   try { jmap.jumpTo(jmap.calculateCameraOptionsFromCameraLngLatAltRotation(maplibregl.LngLat.convert(head), alt, J.fpBear + (J.ub || 0), pitch, 0)); } catch (e) {}
 }
 document.addEventListener('keydown', (e) => {
   if (!jmap || !jVisible() || e.target.closest?.('input,select,textarea')) return;
   if (e.code === 'Space') { e.preventDefault(); jFpToggle(); return; }
   if (!J || !J.fp) return;
-  if (e.key === 'ArrowUp') J.fpSpd = Math.min(3000, J.fpSpd * 1.5);
-  else if (e.key === 'ArrowDown') J.fpSpd = Math.max(1, J.fpSpd / 1.5);
-  else if (e.key === 'ArrowLeft') J.ub = (J.ub || 0) - 20;
-  else if (e.key === 'ArrowRight') J.ub = (J.ub || 0) + 20;
+  if (e.key === 'ArrowUp') jFpLook(0, 5);
+  else if (e.key === 'ArrowDown') jFpLook(0, -5);
+  else if (e.key === 'ArrowLeft') jFpLook(-10, 0);
+  else if (e.key === 'ArrowRight') jFpLook(10, 0);
+  else if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd' || e.code === 'KeyW') jFpSpeed(1.4);
+  else if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract' || e.code === 'KeyS') jFpSpeed(1 / 1.4);
   else if (e.key === 'Escape') jFpToggle(false);
   else if (e.key === 'p' || e.key === 'P' || e.key === 'ㅔ') $('jPause').onclick();
   else return;
@@ -1867,7 +1886,16 @@ function jStart(record) {
 function jTick(now) {
   if (!J) return;
   const P = J.P, dt = J.last ? Math.min(0.1, (now - J.last) / 1000) : 0; J.last = now;
-  if (J.fp && !J.paused && !J.dragging) {
+  // 3D는 지도·지형 그림이 다 올라올 때까지 잠깐 멈춰서, 덜 그려진 화면이 휙 지나가지 않게
+  let hold = false;
+  if (j3d() && !J.paused && !J.dragging && !J.rc) {
+    const ready = jmap.areTilesLoaded();
+    J.waitT = ready ? 0 : (J.waitT || 0) + dt;
+    hold = !ready && J.waitT < (J.fp ? 10 : 4);
+    if (J.waiting !== hold) { J.waiting = hold; if (J.fp) jFpHint(); }
+  }
+  if (hold) {}
+  else if (J.fp && !J.paused && !J.dragging) {
     // 1인칭: 실제 거리로 천천히 (비행은 14초, 기록이 끊긴 사이는 금방 넘김)
     const k = Math.max(1, J.idx), seg = P.D[k] - P.D[k - 1];
     let spd = J.fpSpd;
