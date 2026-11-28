@@ -1447,7 +1447,7 @@ function buildPath(from, to) {
     for (let i = 1; i < n; i++) { const d = distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]); if (d > HOP) { hop[i] = d; idx.push(i); } }
     if (idx.length) {
       const total = W[n - 1];
-      const minW = Math.min(total * 8 / Math.max(5, jcfg.dur), total * 0.6 / idx.length);   // 한 번에 약 8초 (천천히 멀어졌다 다가감)
+      const minW = Math.min(total * (j3d() ? 14 : 8) / Math.max(5, jcfg.dur), total * 0.7 / idx.length);   // 3D: 이륙·순항·착륙을 볼 수 있게 더 길게   // 한 번에 약 8초 (천천히 멀어졌다 다가감)
       const w = new Float64Array(n);
       for (let i = 1; i < n; i++) w[i] = W[i] - W[i - 1];
       for (const i of idx) w[i] = Math.max(w[i], minW);
@@ -1741,6 +1741,9 @@ function jTick(now) {
   const sstep = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   const isHop = P.hop && P.hop[i] > 0;
   const g = isHop ? sstep((f - 0.3) / 0.4) : f;
+  // 비행 높이 단계 (0 → 1 → 0): 앞 35%는 이륙하며 올라가고, 뒤 35%는 내려와 착륙
+  const hopAlt = isHop ? Math.min(sstep(f / 0.35), sstep((1 - f) / 0.35)) : 0;
+  const plane3d = isHop && j3d();
   const head = isHop ? gcPoint(a, b, g) : [a[0] + (b[0] - a[0]) * g, a[1] + (b[1] - a[1]) * g];
   const tail = isHop ? [...gcFill(a, b, g), head] : [head];
   // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
@@ -1756,6 +1759,7 @@ function jTick(now) {
   const mode = known ? (J.kmh < 9 ? 'walk' : J.kmh < 200 ? 'car' : 'plane') : isHop ? 'plane' : null;
   const headF = pointF(head);
   if (jcfg.icon && mode) headF.properties = { icon: 'jm-' + mode };
+  if (plane3d) headF.properties = { icon: 'jm-plane' };
   jmap.getSource('j-new').setData({ type: 'FeatureCollection', features: [lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, tail), headF] });
   J.spdText = jcfg.spd && known ? `${{ walk: '🚶', car: '🚗', plane: '✈️' }[mode]} ${J.kmh < 10 ? J.kmh.toFixed(1) : Math.round(J.kmh)} km/h` : (jcfg.spd && isHop ? '✈️ 이동 중' : '');
   const km = P.D[i - 1] + (P.D[i] - P.D[i - 1]) * g;
@@ -1764,7 +1768,7 @@ function jTick(now) {
   const el = Number.isFinite(a0) && Number.isFinite(a1) ? a0 + (a1 - a0) * g : Number.isFinite(a1) ? a1 : a0;
   if (Number.isFinite(el)) J.el = J.el == null ? el : J.el + (el - J.el) * (1 - Math.pow(0.2, dt || 0.016));
   else if (P.gap[i]) J.el = null;
-  const elText = J.el != null && !isHop ? `⛰ ${nf.format(Math.round(J.el))}m` : '';
+  const elText = plane3d ? `✈️ 고도 ${nf.format(Math.round(hopAlt * 100) * 100)}m` : J.el != null && !isHop ? `⛰ ${nf.format(Math.round(J.el))}m` : '';
   const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2 + (J.spdText ? ' · ' + J.spdText : '') + (elText ? ' · ' + elText : ''));
   if (P.altMax && j3d() && (i - J.wallUpto >= 3 || i < J.wallUpto)) { jmap.getSource('j-wall').setData(wallFC(P, i - 1)); J.wallUpto = i; }
   J.km = km; jProfDraw(km);
@@ -1773,9 +1777,11 @@ function jTick(now) {
   // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
   if (jcfg.cam !== 'fixed' && dt > 0) {
     // 3D: 드론처럼 비스듬히. 멀리 날아갈 때는 위에서 내려다보고, 땅에서는 가는 방향으로 천천히 돌아감
-    const tp = !j3d() ? 0 : isHop ? 10 : J.zoom < 7 ? 25 : J.zoom < 10 ? 50 : 66;
+    // 비행기: 올라갈수록 창밖을 내다보듯 크게 기울임
+    const tp = !j3d() ? 0 : isHop ? 48 + 24 * hopAlt : J.zoom < 7 ? 25 : J.zoom < 10 ? 50 : 66;
     J.pitch += (tp - J.pitch) * (1 - Math.pow(0.35, dt));
-    if (j3d() && !isHop) {
+    if (plane3d) J.bear += angDiff(J.bear, bearingOf(a, b)) * (1 - Math.pow(0.4, dt));   // 비행 방향을 바라봄
+    else if (j3d() && !isHop) {
       if (jcfg.cam === 'auto') J.bear = (J.bear + 3 * dt) % 360;                // 하루 보기: 천천히 한 바퀴
       else if (distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) > 0.3) J.bear += angDiff(J.bear, bearingOf(J.prevHead, head)) * (1 - Math.pow(0.82, dt));
     } else if (!j3d()) J.bear += angDiff(J.bear, 0) * (1 - Math.pow(0.3, dt));
@@ -1785,7 +1791,19 @@ function jTick(now) {
     const lat = Math.max(-80, Math.min(80, head[1]));
     const screenM = 40075016.686 * Math.cos(lat * Math.PI / 180) / 2 ** baseZoom() * (jmap.getCanvas().clientWidth / 512);
     const hopD = P.hop ? P.hop[i] : 0;
-    if (hopD) {
+    if (hopD && plane3d) {
+      // 3D 비행: 지구 전체로 멀리 빠지지 않고, 실제 비행기 높이에서 내려다보는 느낌으로
+      // 순항 높이는 화면이 너무 빨리 지나가지 않을 만큼 (초당 화면 폭의 절반쯤 흐르게)
+      const legSec = Math.max(1, (P.W[i] - P.W[i - 1]) / P.W[P.n - 1] * jcfg.dur * 0.4);
+      const latC = Math.cos(Math.max(-80, Math.min(80, head[1])) * Math.PI / 180);
+      const mppWant = (hopD / legSec) / Math.max(200, (jmap.getCanvas().clientWidth || 400) * 0.5);
+      const cruise = Math.max(5.5, Math.min(11, Math.log2(40075016.686 * latC / 512 / mppWant)));
+      const dest = camZoom(P, i);
+      const want = J.hopStart + (dest - J.hopStart) * g;
+      J.zoom = want + (Math.min(want, cruise) - want) * hopAlt;
+      J.cam = head.slice();
+      J.inHop = true;
+    } else if (hopD) {
       // 나라를 넘는 이동: 출발지에서 멀어져 지구가 보일 만큼 축소 → 도착지로 다가가며 다시 확대
       const dest = camZoom(P, i);
       const far = Math.max(1.3, Math.min(Math.min(J.hopStart, dest) - 2, zoomForSpan(hopD, (a[1] + b[1]) / 2)));
