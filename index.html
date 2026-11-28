@@ -421,6 +421,7 @@
         </div>
         <span class="muted" id="jMsg"></span>
       </div>
+      <canvas id="jProf" class="hidden" style="position:absolute;left:50%;transform:translateX(-50%);bottom:92px;width:min(560px,calc(100% - 40px));height:70px;pointer-events:none;z-index:3"></canvas>
       <div class="float hidden" id="jCtl"><button class="btn" id="jPause" aria-label="일시정지" style="width:46px;padding:0">⏸</button><input type="range" id="jSeek" min="0" max="1000" step="1" value="0" aria-label="재생 위치"><span class="muted" id="jTime" style="font-variant-numeric:tabular-nums;white-space:nowrap">0:00 / 0:00</span><button class="btn" id="jStop">멈추기</button></div>
     </div>
 
@@ -1468,7 +1469,10 @@ function buildPath(from, to) {
   };
   for (let i = 1; i < n; i++) if (day[i] !== day[i - 1] || distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]) > 120000) closeZone(i);
   if (n) closeZone(n);
-  return { pts, day, gap, T, A, W, D, n, bounds, hop, zoneOf, zones };
+  let altMin = Infinity, altMax = -Infinity;
+  for (const a of A) if (Number.isFinite(a)) { if (a < altMin) altMin = a; if (a > altMax) altMax = a; }
+  if (!Number.isFinite(altMin)) { altMin = 0; altMax = 0; }
+  return { pts, day, gap, T, A, W, D, n, bounds, hop, zoneOf, zones, altMin, altMax };
 }
 
 /** 지구 위 두 점 사이 가장 짧은 길(대권) 위의 한 점. f=0이면 a, 1이면 b */
@@ -1519,12 +1523,14 @@ function initJourney() {
     const col = JCOL[jcfg.col][1], L = { 'line-cap': 'round', 'line-join': 'round' };
     // 3D 지형: 무료 공개 높이 지도(AWS Terrain Tiles)로 산과 골짜기를 세우고, 언덕 그림자를 얹음
     try {
-      const dem = { type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Terrain: Mapzen/AWS' };
+      const dem = { type: 'raster-dem', url: DEM_URL };
       jmap.addSource('j-dem', dem); jmap.addSource('j-dem2', dem);
       const firstSym = jmap.getStyle().layers.find(l => l.type === 'symbol')?.id;
       jmap.addLayer({ id: 'j-hill', type: 'hillshade', source: 'j-dem2', layout: { visibility: 'none' }, paint: { 'hillshade-exaggeration': 0.4, 'hillshade-shadow-color': '#3D3424', 'hillshade-highlight-color': '#FFFFFF' } }, firstSym);
     } catch (e) {}
-    for (const id of ['j-old', 'j-new', 'j-head']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
+    for (const id of ['j-old', 'j-new', 'j-head', 'j-wall']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
+    // 높이 벽: 기록된 고도만큼 길 아래로 반투명 벽을 세워, 오르막·내리막이 한눈에 보이게
+    jmap.addLayer({ id: 'j-wall', type: 'fill-extrusion', source: 'j-wall', layout: { visibility: 'none' }, paint: { 'fill-extrusion-color': ['get', 'c'], 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.6 } });
     jmap.addLayer({ id: 'j-old', type: 'line', source: 'j-old', layout: L, paint: { 'line-color': col, 'line-width': 3, 'line-opacity': 0.6 } });
     jmap.addLayer({ id: 'j-glow', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 14, 'line-blur': 9, 'line-opacity': 0.45 } });
     jmap.addLayer({ id: 'j-new', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 5.5 } });
@@ -1604,12 +1610,13 @@ function jSetProjection() {
   if (jcfg.globe) { try { jmap.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {} }
   // 입체(3D): 지구본이 아닐 때만 지형을 세움
   const on = j3d();
-  try { jmap.setTerrain(on ? { source: 'j-dem', exaggeration: 1.5 } : null); } catch (e) {}
-  try { if (jmap.getLayer('j-hill')) jmap.setLayoutProperty('j-hill', 'visibility', on ? 'visible' : 'none'); } catch (e) {}
+  try { jmap.setTerrain(on ? { source: 'j-dem', exaggeration: EXAG } : null); } catch (e) {}
+  try { for (const id of ['j-hill', 'j-wall']) if (jmap.getLayer(id)) jmap.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); } catch (e) {}
   if (on) { try { jmap.setSky({ 'sky-color': '#6FB7F0', 'horizon-color': '#DDEFFF', 'fog-color': '#F2F7FB', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.5 }); } catch (e) {} }
   else if (!J) jmap.easeTo({ pitch: 0, bearing: 0, duration: 500 });
 }
-const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const DEM_URL = 'https://tiles.mapterhorn.com/tilejson.json';
+const EXAG = 2.2;   // 한국 산은 낮아서 높이를 2배 넘게 키워야 입체감이 나요
 const j3d = () => jcfg.d3 && !jcfg.globe;
 /** a에서 b로 가는 방향 (북쪽 0°, 시계 방향) */
 function bearingOf(a, b) {
@@ -1619,16 +1626,67 @@ function bearingOf(a, b) {
 }
 const angDiff = (from, to) => ((to - from + 540) % 360) - 180;
 
+/** 높이 벽 (k까지). 그날 가장 낮은 곳을 바닥으로, 오른 만큼 벽이 높아지고 색도 초록→주황→빨강 */
+function wallFC(P, upto) {
+  const feats = [];
+  if (!P.altMax || P.altMax - P.altMin < 3) return { type: 'FeatureCollection', features: feats };
+  const span = Math.max(30, P.altMax - P.altMin);
+  for (let k = 1; k <= upto; k++) {
+    const a0 = P.A[k - 1], a1 = P.A[k];
+    if (!Number.isFinite(a0) || !Number.isFinite(a1) || P.gap[k] || P.hop[k]) continue;
+    const p = P.pts[k - 1], q = P.pts[k];
+    const lat = p[1] * Math.PI / 180, w = 3.5;                     // 벽 두께 (m)
+    const dx = (q[0] - p[0]) * Math.cos(lat), dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1;
+    const ox = -dy / l * w / 111320 / Math.cos(lat), oy = dx / l * w / 111320;
+    const rel = ((a0 + a1) / 2 - P.altMin);
+    const f = Math.min(1, rel / span);
+    const col = f < 0.5 ? `rgb(${Math.round(76 + f * 2 * 179)},${Math.round(200 - f * 2 * 40)},90)` : `rgb(255,${Math.round(160 - (f - 0.5) * 2 * 110)},${Math.round(90 - (f - 0.5) * 2 * 40)})`;
+    feats.push({ type: 'Feature', properties: { h: 4 + rel * EXAG, c: col }, geometry: { type: 'Polygon', coordinates: [[[p[0] + ox, p[1] + oy], [q[0] + ox, q[1] + oy], [q[0] - ox, q[1] - oy], [p[0] - ox, p[1] - oy], [p[0] + ox, p[1] + oy]]] } });
+  }
+  return { type: 'FeatureCollection', features: feats };
+}
+/** 높이 그래프: 가로는 지나온 거리, 세로는 해발 높이. upto까지 진하게, 지금 자리에 점 */
+function drawProfile(c, x, y, w, h, P, km, s) {
+  if (!P.altMax) return;
+  const lo = P.altMin, hi = Math.max(P.altMax, lo + 20), D = P.D[P.n - 1] || 1;
+  c.save();
+  c.fillStyle = 'rgba(20,27,36,0.78)'; c.beginPath(); c.roundRect(x, y, w, h, 12 * s); c.fill();
+  const px = (d) => x + 10 * s + (w - 20 * s) * d / D, py = (a) => y + h - 10 * s - (h - 26 * s) * (a - lo) / (hi - lo);
+  const line = (end, fill) => {
+    c.beginPath(); let on = false, first = 0;
+    for (let k = 0; k < P.n && P.D[k] <= end; k++) { if (!Number.isFinite(P.A[k])) continue; if (!on) { c.moveTo(px(P.D[k]), py(P.A[k])); first = P.D[k]; on = true; } else c.lineTo(px(P.D[k]), py(P.A[k])); }
+    return on;
+  };
+  if (line(D)) { c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 2 * s; c.stroke(); }
+  if (line(km)) { c.strokeStyle = '#7FD18B'; c.lineWidth = 3 * s; c.stroke(); }
+  c.fillStyle = '#C9D2DD'; c.font = `600 ${11 * s}px sans-serif`; c.textAlign = 'left';
+  c.fillText(`⛰ ${nf.format(Math.round(hi))}m`, x + 10 * s, y + 13 * s);
+  c.textAlign = 'right'; c.fillText(`${nf.format(Math.round(lo))}m`, x + w - 10 * s, y + 13 * s);
+  if (J && J.el != null) { const mx = px(km), my = py(J.el); c.fillStyle = '#fff'; c.beginPath(); c.arc(mx, my, 5 * s, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#111'; c.lineWidth = 2 * s; c.stroke(); }
+  c.restore();
+}
+function jProfDraw(km) {
+  const cv = $('jProf'), P = J ? J.P : JP;
+  if (!cv || !P || !P.altMax) { if (cv) cv.classList.add('hidden'); return; }
+  cv.classList.remove('hidden');
+  const r = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * r)) { cv.width = Math.round(W * r); cv.height = Math.round(H * r); }
+  const c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
+  drawProfile(c, 0, 0, cv.width, cv.height, P, km, r);
+}
+
 /** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
 function jPreview(fit) {
   if (!jmap?._ready) return;
   JP = buildPath(jcfg.from, jcfg.to);
   $('jMsg').textContent = JP ? `점 ${nf.format(JP.n)}개 · ${fmtDist(JP.D[JP.n - 1])}` : '이 기간에는 기록이 없어요.';
   $('jPlay').disabled = $('jRec').disabled = !JP;
-  if (!JP) { for (const id of ['j-old', 'j-new', 'j-head']) jmap.getSource(id).setData(EMPTY); setJTitle('', ''); $('jTitle').classList.add('hidden'); return; }
+  if (!JP) { for (const id of ['j-old', 'j-new', 'j-head', 'j-wall']) jmap.getSource(id).setData(EMPTY); jProfDraw(0); setJTitle('', ''); $('jTitle').classList.add('hidden'); return; }
   jmap.getSource('j-old').setData(lines(JP, 0, JP.n - 1));
   jmap.getSource('j-new').setData(EMPTY);
   jmap.getSource('j-head').setData(pointF(JP.pts[0]));
+  try { jmap.getSource('j-wall').setData(wallFC(JP, JP.n - 1)); } catch (e) {}
+  jProfDraw(JP.D[JP.n - 1]);
   const [a, b] = jTitleText(JP, JP.n - 1, JP.D[JP.n - 1]); setJTitle(a, b); $('jTitle').classList.remove('hidden');
   if (fit) jFit(JP, 600);
 }
@@ -1662,7 +1720,7 @@ function jStart(record) {
   const z0 = camZoom(P, 0), c0 = jcfg.cam === 'auto' ? [...P.zones[0].c] : [...P.pts[0]];
   J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: z0, hopStart: z0, cam: c0, endAt: 0, pitch: 0, bear: 0, el: null };
   jmap.getSource('j-old').setData(EMPTY);
-  jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(EMPTY);
+  jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(EMPTY); jmap.getSource('j-wall').setData(EMPTY); J.wallUpto = 0;
   $('jPanel').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
   if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: 0, bearing: 0 });
   if (record) recStart();
@@ -1708,12 +1766,14 @@ function jTick(now) {
   else if (P.gap[i]) J.el = null;
   const elText = J.el != null && !isHop ? `⛰ ${nf.format(Math.round(J.el))}m` : '';
   const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2 + (J.spdText ? ' · ' + J.spdText : '') + (elText ? ' · ' + elText : ''));
+  if (P.altMax && j3d() && (i - J.wallUpto >= 3 || i < J.wallUpto)) { jmap.getSource('j-wall').setData(wallFC(P, i - 1)); J.wallUpto = i; }
+  J.km = km; jProfDraw(km);
   if (!J.dragging) $('jSeek').value = Math.round(J.t / jcfg.dur * 1000);
   $('jTime').textContent = `${fmtT(J.t)} / ${fmtT(jcfg.dur)}`;
   // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
   if (jcfg.cam !== 'fixed' && dt > 0) {
     // 3D: 드론처럼 비스듬히. 멀리 날아갈 때는 위에서 내려다보고, 땅에서는 가는 방향으로 천천히 돌아감
-    const tp = !j3d() ? 0 : isHop ? 10 : J.zoom < 7 ? 25 : J.zoom < 10 ? 45 : 58;
+    const tp = !j3d() ? 0 : isHop ? 10 : J.zoom < 7 ? 25 : J.zoom < 10 ? 50 : 66;
     J.pitch += (tp - J.pitch) * (1 - Math.pow(0.35, dt));
     if (j3d() && !isHop) {
       if (jcfg.cam === 'auto') J.bear = (J.bear + 3 * dt) % 360;                // 하루 보기: 천천히 한 바퀴
@@ -1834,6 +1894,7 @@ function jRecFrame() {
   c.textAlign = 'center'; c.fillStyle = '#111';
   c.font = `800 ${24 * s}px Pretendard, sans-serif`; c.fillText(t1, rc.width / 2, by + 34 * s);
   c.fillStyle = '#555'; c.font = `500 ${14 * s}px Pretendard, sans-serif`; c.fillText(t2, rc.width / 2, by + 60 * s);
+  if (J.P.altMax && J.km != null) { const gw = Math.min(rc.width - 40 * s, 560 * s); drawProfile(c, (rc.width - gw) / 2, rc.height - 160 * s, gw, 70 * s, J.P, J.km, s); }
 }
 
 // ───────── 새 도구(tools.js)가 쓰는 공용 창구 ─────────
