@@ -1426,13 +1426,13 @@ function buildPath(from, to) {
   const dayBox = {};
   for (const s of list) { const b = dayBox[s.day] || (dayBox[s.day] = [180, -180, 90, -90]); for (const p of s.ll) { if (p[0] < b[0]) b[0] = p[0]; if (p[0] > b[1]) b[1] = p[0]; if (p[1] < b[2]) b[2] = p[1]; if (p[1] > b[3]) b[3] = p[1]; } }
   const dayTol = {};
-  for (const d in dayBox) { const b = dayBox[d]; dayTol[d] = Math.max(4, Math.min(25, distM(b[2], b[0], b[3], b[1]) / 5000)); }
+  for (const d in dayBox) dayTol[d] = 0;              // 점을 건너뛰지 않고 기록 그대로 모두 씀
   const pts = [], day = [], gap = [], T = [], A = [];
   for (const s of list) {
     let last = null; const tol = dayTol[s.day];
     s.ll.forEach((p, k) => {
       const end = k === s.ll.length - 1;
-      if (last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
+      if (tol > 0 && last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
       pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); T.push(s.t ? s.t[k] : NaN); A.push(s.a ? s.a[k] : NaN); last = p;
     });
   }
