@@ -398,6 +398,7 @@
           <span id="jYears" style="display:contents"></span>
         </div>
         <div class="range"><input type="date" id="jFrom" aria-label="시작일"><span class="muted">–</span><input type="date" id="jTo" aria-label="종료일"></div>
+        <div class="two"><button class="btn" id="jPrevDay">◀ 전날</button><button class="btn" id="jNextDay">다음 날 ▶</button></div>
         <div class="two">
           <label>재생 길이<select id="jDur"><option value="15">15초</option><option value="30">30초</option><option value="60">1분</option><option value="90">1분 30초</option><option value="120">2분</option><option value="180">3분</option><option value="300">5분</option><option value="420">7분</option><option value="600">10분</option></select></label>
           <label>카메라<select id="jCam"><option value="auto">따라가기 · 하루 크기에 맞춤</option><option value="near">따라가기 · 동네</option><option value="city">따라가기 · 도시</option><option value="country">따라가기 · 나라</option><option value="fixed">전체 고정</option></select></label>
@@ -420,10 +421,12 @@
           <button class="btn primary" id="jPlay">▶ 재생</button>
           <button class="btn" id="jRec">⏺ 영상으로 저장</button>
         </div>
+        <button class="btn" id="jHQ" style="width:100%">🎬 고화질 영상 만들기 <span class="muted">· 장면마다 다 그린 뒤 찍어요 (PC 추천)</span></button>
+        <label class="chk"><input type="checkbox" id="jHQfp"> 고화질 영상을 1인칭 시점으로</label>
         <span class="muted" id="jMsg"></span>
       </div>
       <canvas id="jProf" class="hidden" style="position:absolute;left:50%;transform:translateX(-50%);bottom:92px;width:min(560px,calc(100% - 40px));height:70px;pointer-events:none;z-index:3"></canvas>
-      <div class="float hidden" id="jCtl"><button class="btn" id="jPause" aria-label="일시정지" style="width:46px;padding:0">⏸</button><button class="btn" id="jView" aria-label="구도 바꾸기" style="padding:0 10px">🎥 자동</button><input type="range" id="jSeek" min="0" max="1000" step="1" value="0" aria-label="재생 위치"><span class="muted" id="jTime" style="font-variant-numeric:tabular-nums;white-space:nowrap">0:00 / 0:00</span><button class="btn" id="jStop">멈추기</button></div>
+      <div class="float hidden" id="jCtl"><button class="btn" id="jPD" aria-label="전날" style="width:40px;padding:0">⏮</button><button class="btn" id="jPause" aria-label="일시정지" style="width:46px;padding:0">⏸</button><button class="btn" id="jND" aria-label="다음 날" style="width:40px;padding:0">⏭</button><button class="btn" id="jView" aria-label="구도 바꾸기" style="padding:0 10px">🎥 자동</button><input type="range" id="jSeek" min="0" max="1000" step="1" value="0" aria-label="재생 위치"><span class="muted" id="jTime" style="font-variant-numeric:tabular-nums;white-space:nowrap">0:00 / 0:00</span><button class="btn" id="jStop">멈추기</button></div>
     </div>
 
     <!-- 나란히 비교 -->
@@ -1419,10 +1422,14 @@ function buildPath(from, to) {
   const cut = la.length >= 40 ? 0.03 : 0;
   const bounds = [[q(so, cut), q(sl, cut)], [q(so, 1 - cut), q(sl, 1 - cut)]];
   const extent = distM(sl[0], so[0], sl[sl.length - 1], so[so.length - 1]);
-  const tol = Math.max(8, extent / 4000);            // 화면에서 구분 안 될 만큼 가까운 점은 건너뜀
+  // 점 줄이기는 '그날' 크기 기준으로만 (기간 전체 기준이면 1년치를 볼 때 길이 직선처럼 뭉개짐)
+  const dayBox = {};
+  for (const s of list) { const b = dayBox[s.day] || (dayBox[s.day] = [180, -180, 90, -90]); for (const p of s.ll) { if (p[0] < b[0]) b[0] = p[0]; if (p[0] > b[1]) b[1] = p[0]; if (p[1] < b[2]) b[2] = p[1]; if (p[1] > b[3]) b[3] = p[1]; } }
+  const dayTol = {};
+  for (const d in dayBox) { const b = dayBox[d]; dayTol[d] = Math.max(4, Math.min(25, distM(b[2], b[0], b[3], b[1]) / 5000)); }
   const pts = [], day = [], gap = [], T = [], A = [];
   for (const s of list) {
-    let last = null;
+    let last = null; const tol = dayTol[s.day];
     s.ll.forEach((p, k) => {
       const end = k === s.ll.length - 1;
       if (last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
@@ -1497,13 +1504,17 @@ function gcFill(a, b, upto = 1) {
 }
 /** k0~k1 점을 한 줄로 (기록이 끊긴 사이도 이어 그림, 먼 이동은 곡선). tail이 있으면 끝에 이어 붙임 */
 function lines(P, k0, k1, tail) {
-  const cur = [];
-  for (let k = Math.max(0, k0); k <= k1; k++) {
-    if (k > Math.max(0, k0) && P.hop[k]) cur.push(...gcFill(P.pts[k - 1], P.pts[k]));
+  // GPS가 끊긴 사이(비행 제외)는 지도처럼 선을 잇지 않고 따로 그림
+  const parts = []; let cur = [];
+  const s0 = Math.max(0, k0);
+  for (let k = s0; k <= k1; k++) {
+    if (k > s0 && P.gap[k] && !P.hop[k]) { if (cur.length > 1) parts.push(cur); cur = []; }
+    else if (k > s0 && P.hop[k]) cur.push(...gcFill(P.pts[k - 1], P.pts[k]));
     cur.push(P.pts[k]);
   }
   if (tail) cur.push(...tail);
-  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: cur.length > 1 ? [cur] : [] } };
+  if (cur.length > 1) parts.push(cur);
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: parts } };
 }
 const pointF = (p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } });
 
@@ -1519,15 +1530,15 @@ function jTitleText(P, i, km) {
 function setJTitle(a, b) { $('jT1').textContent = a; $('jT2').textContent = b; }
 
 function initJourney() {
-  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true }, maxPitch: 85 });
+  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true }, maxPitch: 85, maxTileCacheSize: 120, pixelRatio: Math.min(devicePixelRatio || 1, 1.5) });
   jmap.on('load', () => {
     const col = JCOL[jcfg.col][1], L = { 'line-cap': 'round', 'line-join': 'round' };
     // 3D 지형: 무료 공개 높이 지도(AWS Terrain Tiles)로 산과 골짜기를 세우고, 언덕 그림자를 얹음
     try {
       const dem = { type: 'raster-dem', url: DEM_URL };
-      jmap.addSource('j-dem', dem); jmap.addSource('j-dem2', dem);
+      jmap.addSource('j-dem', dem);
       const firstSym = jmap.getStyle().layers.find(l => l.type === 'symbol')?.id;
-      jmap.addLayer({ id: 'j-hill', type: 'hillshade', source: 'j-dem2', layout: { visibility: 'none' }, paint: { 'hillshade-exaggeration': 0.4, 'hillshade-shadow-color': '#3D3424', 'hillshade-highlight-color': '#FFFFFF' } }, firstSym);
+      jmap.addLayer({ id: 'j-hill', type: 'hillshade', source: 'j-dem', layout: { visibility: 'none' }, paint: { 'hillshade-exaggeration': 0.4, 'hillshade-shadow-color': '#3D3424', 'hillshade-highlight-color': '#FFFFFF' } }, firstSym);
     } catch (e) {}
     for (const id of ['j-old', 'j-new', 'j-head', 'j-wall', 'j-sky']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
     // 하늘 길: 비행기로 이동한 구간은 실제 비행 높이(최대 10km)에 떠 있는 선으로
@@ -1617,6 +1628,9 @@ function initJourney() {
   $('jView').onclick = () => { if (!J) return; jSetView(((J.view || 0) + 1) % JVIEWS.length); };
   $('jPlay').onclick = () => jStart(false);
   $('jRec').onclick = () => jStart(true);
+  $('jHQ').onclick = () => jRenderHQ();
+  $('jPrevDay').onclick = $('jPD').onclick = () => jStepDay(-1);
+  $('jNextDay').onclick = $('jND').onclick = () => jStepDay(1);
   $('jStop').onclick = () => jEnd(true);
 }
 
@@ -1639,7 +1653,7 @@ function jSetProjection() {
   else if (!J) jmap.easeTo({ pitch: 0, bearing: 0, duration: 500 });
 }
 const DEM_URL = 'https://tiles.mapterhorn.com/tilejson.json';
-const EXAG = 2.2;   // 한국 산은 낮아서 높이를 2배 넘게 키워야 입체감이 나요
+const EXAG = 1.6;   // 한국 산은 낮아서 높이를 2배 넘게 키워야 입체감이 나요
 const j3d = () => jcfg.d3 && !jcfg.globe;
 /** a에서 b로 가는 방향 (북쪽 0°, 시계 방향) */
 function bearingOf(a, b) {
@@ -1678,12 +1692,12 @@ function skyFC(P, upto, gNow) {
     for (let j = 1; j <= m; j++) {
       const gg = Math.min(end, j / m); if (gg <= pg) break;
       const q = gcPoint(a, b, gg);
-      const lat = prev[1] * Math.PI / 180, w = 900;
+      const lat = prev[1] * Math.PI / 180, w = Math.max(60, Math.min(200, P.hop[k] / 4000));
       const dx = lonDiff(prev[0], q[0]) * Math.cos(lat), dy = q[1] - prev[1], l = Math.hypot(dx, dy) || 1;
       const ox = -dy / l * w / 111320 / Math.cos(lat), oy = dx / l * w / 111320;
       const h = flyAltAt((pg + gg) / 2, P.hop[k]);
       const q2 = [prev[0] + lonDiff(prev[0], q[0]), q[1]];
-      feats.push({ type: 'Feature', properties: { h: Math.max(60, h), b: Math.max(0, h - 350) }, geometry: { type: 'Polygon', coordinates: [[[prev[0] + ox, prev[1] + oy], [q2[0] + ox, q2[1] + oy], [q2[0] - ox, q2[1] - oy], [prev[0] - ox, prev[1] - oy], [prev[0] + ox, prev[1] + oy]]] } });
+      feats.push({ type: 'Feature', properties: { h: Math.max(40, h), b: Math.max(0, h - 80) }, geometry: { type: 'Polygon', coordinates: [[[prev[0] + ox, prev[1] + oy], [q2[0] + ox, q2[1] + oy], [q2[0] - ox, q2[1] - oy], [prev[0] - ox, prev[1] - oy], [prev[0] + ox, prev[1] + oy]]] } });
       prev = q; pg = gg;
       if (gg >= end) break;
     }
@@ -1828,6 +1842,25 @@ function jProfDraw(km) {
   drawProfile(c, 0, 0, cv.width, cv.height, P, km, r);
 }
 
+/** 하루씩 넘기기: 기록이 있는 바로 앞·뒤 날로 (재생 중이면 그날을 바로 재생) */
+function jStepDay(dir) {
+  if (J && J.hq) return;
+  const ds = [...new Set(segs.filter(s => s.src !== 'photo' && s.src !== 'phone').map(s => s.day))].sort();
+  if (!ds.length) return;
+  const cur = dir > 0 ? jcfg.to : jcfg.from;
+  const d = dir > 0 ? ds.find(x => x > cur) : [...ds].reverse().find(x => x < cur);
+  if (!d) { $('jMsg').textContent = dir > 0 ? '이후에는 기록이 없어요.' : '이전에는 기록이 없어요.'; return; }
+  const playing = !!J;
+  if (J) jEnd(true);
+  jcfg.from = jcfg.to = d; $('jFrom').value = d; $('jTo').value = d; saveJcfg();
+  if (playing) jStart(false); else jPreview(true);
+}
+document.addEventListener('keydown', (e) => {
+  if (!jmap || !jVisible() || e.target.closest?.('input,select,textarea')) return;
+  if (e.key === 'PageUp' || e.key === '[') { e.preventDefault(); jStepDay(-1); }
+  else if (e.key === 'PageDown' || e.key === ']') { e.preventDefault(); jStepDay(1); }
+});
+
 /** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
 function jPreview(fit) {
   if (!jmap?._ready) return;
@@ -1866,7 +1899,7 @@ function zoomForSpan(d, lat) { const w = jmap.getCanvas().clientWidth || 1000; r
 const lonDiff = (a, b) => { let d = b - a; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
 const lonWrap = x => ((x + 540) % 360) - 180;
 
-function jStart(record) {
+function jStart(record, hq = false) {
   const P = buildPath(jcfg.from, jcfg.to);
   if (!P) return;
   jSetProjection();
@@ -1879,8 +1912,8 @@ function jStart(record) {
   if (record) recStart();
   // 영상으로 저장하는 동안에는 위치를 옮기거나 멈출 수 없음
   jSetView(0);
-  $('jPause').textContent = '⏸'; $('jPause').disabled = !!record; $('jSeek').disabled = !!record; $('jSeek').value = 0;
-  requestAnimationFrame(jTick);
+  $('jPause').textContent = '⏸'; $('jPause').disabled = !!record || hq; $('jSeek').disabled = !!record || hq; $('jSeek').value = 0;
+  if (hq) J.hq = true; else requestAnimationFrame(jTick);
 }
 
 function jTick(now) {
@@ -1888,10 +1921,10 @@ function jTick(now) {
   const P = J.P, dt = J.last ? Math.min(0.1, (now - J.last) / 1000) : 0; J.last = now;
   // 3D는 지도·지형 그림이 다 올라올 때까지 잠깐 멈춰서, 덜 그려진 화면이 휙 지나가지 않게
   let hold = false;
-  if (j3d() && !J.paused && !J.dragging && !J.rc) {
+  if (J.fp && !J.hq && j3d() && !J.paused && !J.dragging && !J.rc) {
     const ready = jmap.areTilesLoaded();
     J.waitT = ready ? 0 : (J.waitT || 0) + dt;
-    hold = !ready && J.waitT < (J.fp ? 10 : 4);
+    hold = !ready && J.waitT < 3;
     if (J.waiting !== hold) { J.waiting = hold; if (J.fp) jFpHint(); }
   }
   if (hold) {}
@@ -1918,7 +1951,7 @@ function jTick(now) {
   const hopAlt = isHop ? (J.fp ? flyAltAt(g, P.hop[i]) / FLY_ALT : Math.min(sstep(f / 0.35), sstep((1 - f) / 0.35))) : 0;
   const plane3d = isHop && j3d();
   const head = isHop ? gcPoint(a, b, g) : [a[0] + (b[0] - a[0]) * g, a[1] + (b[1] - a[1]) * g];
-  const tail = isHop ? [...gcFill(a, b, g), head] : [head];
+  const tail = isHop ? [...gcFill(a, b, g), head] : P.gap[i] ? null : [head];
   // 꼬리: 최근 구간은 진하게, 그 앞은 옅게 (오래된 부분은 가끔만 다시 그림)
   const RECENT = 400, cutAt = Math.max(0, i - RECENT);
   if (cutAt - J.oldUpto > 60 || (cutAt > 0 && J.oldUpto < 0)) { jmap.getSource('j-old').setData(lines(P, 0, cutAt)); J.oldUpto = cutAt; }
@@ -1953,7 +1986,7 @@ function jTick(now) {
   else if (jcfg.cam !== 'fixed' && dt > 0) {
     // 3D: 드론처럼 비스듬히. 멀리 날아갈 때는 위에서 내려다보고, 땅에서는 가는 방향으로 천천히 돌아감
     // 비행기: 올라갈수록 창밖을 내다보듯 크게 기울임
-    const tp = !j3d() ? 0 : isHop ? 48 + 24 * hopAlt : J.zoom < 7 ? 25 : J.zoom < 10 ? 50 : 66;
+    const tp = !j3d() ? 0 : isHop ? 45 + 20 * hopAlt : J.zoom < 7 ? 20 : J.zoom < 10 ? 40 : 52;
     J.pitch += (tp - J.pitch) * (1 - Math.pow(0.35, dt));
     if (plane3d) J.bear += angDiff(J.bear, bearingOf(a, b)) * (1 - Math.pow(0.4, dt));   // 비행 방향을 바라봄
     else if (j3d() && !isHop) {
@@ -2015,11 +2048,96 @@ function jTick(now) {
   }
   J.prevHead = head;
   if (J.t >= jcfg.dur && !J.paused && !J.dragging) {
-    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(pointF(P.pts[P.n - 1])); jFit(P, 1200); }
-    if (now - J.endAt > 2500) { jEnd(false); return; }
+    if (!J.endAt) { J.endAt = now; jmap.getSource('j-old').setData(lines(P, 0, P.n - 1)); jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(pointF(P.pts[P.n - 1])); jFit(P, J.hq ? 0 : 1200); }
+    if (now - J.endAt > 2500) { if (J.hq) { J.done = true; return; } jEnd(false); return; }
   }
   jmap.triggerRepaint();
-  requestAnimationFrame(jTick);
+  if (!J.hq) requestAnimationFrame(jTick);
+}
+
+// ───── 고화질 영상: 한 장면씩 카메라를 옮기고, 지도가 다 그려지면 찍어서 이어 붙임 (1초에 30장) ─────
+let HQ = null;
+async function jRenderHQ() {
+  if (J || !JP) return;
+  if (!window.VideoEncoder || !window.VideoFrame) { $('jMsg').textContent = '이 브라우저는 고화질 만들기를 지원하지 않아요. 크롬이나 엣지에서 해 주세요.'; return; }
+  let Mux;
+  try { Mux = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5/+esm'); } catch (e) { $('jMsg').textContent = '영상 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'; return; }
+  const fps = 30, wantFp = $('jHQfp').checked;
+  const oldRatio = jmap.getPixelRatio();
+  try { jmap.setPixelRatio(Math.min(2, Math.max(1.5, devicePixelRatio || 1))); } catch (e) {}
+  jStart(false, true);
+  if (!J) return;
+  if (wantFp) {
+    jFpToggle(true);
+    // 1인칭: 정한 길이 안에 끝나도록 속도를 맞춤 (비행·끊긴 구간 빼고 걸은 거리 기준)
+    let ground = 0; for (let k = 1; k < J.P.n; k++) if (!J.P.hop[k] && !J.P.gap[k]) ground += J.P.D[k] - J.P.D[k - 1];
+    J.fpSpd = Math.max(5, ground / (jcfg.dur * 0.75));
+  }
+  const src = jmap.getCanvas();
+  let W2 = Math.min(1920, src.width), H2 = Math.round(src.height * W2 / src.width);
+  W2 -= W2 % 2; H2 -= H2 % 2;
+  const rc = document.createElement('canvas'); rc.width = W2; rc.height = H2;
+  J.rc = rc; J.rctx = rc.getContext('2d');
+  const target = new Mux.ArrayBufferTarget();
+  const muxer = new Mux.Muxer({ target, video: { codec: 'avc', width: W2, height: H2, frameRate: fps }, fastStart: 'in-memory' });
+  let encErr = null;
+  const enc = new VideoEncoder({ output: (ch, meta) => muxer.addVideoChunk(ch, meta), error: (e) => { encErr = e; } });
+  const cfg = { codec: W2 * H2 > 1920 * 1088 ? 'avc1.640033' : 'avc1.640028', width: W2, height: H2, bitrate: 12e6, framerate: fps };
+  try { const sup = await VideoEncoder.isConfigSupported(cfg); if (!sup.supported) cfg.codec = 'avc1.42E01F'; } catch (e) {}
+  enc.configure(cfg);
+  // 진행 표시
+  const box = document.createElement('div');
+  box.style.cssText = 'position:absolute;inset:0;z-index:9;display:flex;align-items:flex-end;justify-content:center;pointer-events:none';
+  box.innerHTML = '<div style="pointer-events:auto;margin-bottom:96px;background:rgba(20,27,36,.94);color:#F3EFE6;border-radius:16px;padding:14px 18px;width:min(460px,calc(100% - 32px));font-size:14px"><b>🎬 고화질 영상 만드는 중</b><div style="height:8px;background:#3A4758;border-radius:4px;margin:10px 0;overflow:hidden"><i id="hqBar" style="display:block;height:100%;width:0;background:#F5B041"></i></div><span id="hqTxt">준비 중…</span><div style="margin-top:8px;color:#C9D2DD;font-size:12px">이 창을 켜 둔 채로 기다려 주세요. 다른 탭으로 가면 멈춰요.</div><button class="btn" id="hqStop" style="margin-top:10px;height:38px">그만 만들기</button></div>';
+  jmap.getContainer().parentElement.appendChild(box);
+  HQ = { stop: false };
+  $('hqStop').onclick = () => { HQ.stop = true; };
+  $('jCtl').classList.add('hidden');
+  const waitReady = () => new Promise((res) => {
+    const t0 = performance.now();
+    const chk = () => {
+      if ((jmap.loaded() && jmap.areTilesLoaded()) || performance.now() - t0 > 20000) requestAnimationFrame(() => res());
+      else setTimeout(chk, 25);
+    };
+    jmap.triggerRepaint(); requestAnimationFrame(() => requestAnimationFrame(chk));
+  });
+  const totalF = Math.ceil((jcfg.dur + 2.6) * fps);
+  const startAt = performance.now();
+  let fake = 1000, frame = 0;
+  J.last = fake;
+  while (J && !J.done && !HQ.stop && !encErr && frame < totalF + fps * 120) {
+    fake += 1000 / fps;
+    jTick(fake);
+    if (!J) break;
+    await waitReady();
+    jRecFrame();
+    const vf = new VideoFrame(rc, { timestamp: Math.round(frame * 1e6 / fps), duration: Math.round(1e6 / fps) });
+    enc.encode(vf, { keyFrame: frame % (fps * 2) === 0 }); vf.close();
+    while (enc.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 5));
+    frame++;
+    if (frame % 5 === 0) {
+      const pct = Math.min(99, J.t / jcfg.dur * 100), el = (performance.now() - startAt) / 1000;
+      const left = pct > 1 ? el * (100 - pct) / pct : 0;
+      $('hqBar').style.width = pct + '%';
+      $('hqTxt').textContent = `${Math.round(pct)}% · ${frame}장 · 남은 시간 약 ${left < 90 ? Math.round(left) + '초' : Math.round(left / 60) + '분'}`;
+    }
+  }
+  const stopped = HQ.stop || !!encErr;
+  box.remove(); HQ = null;
+  try { jmap.setPixelRatio(oldRatio); } catch (e) {}
+  if (J) jEnd(stopped);
+  if (encErr) { $('jMsg').textContent = '영상을 만들다 문제가 생겼어요: ' + encErr.message; return; }
+  if (stopped) { try { enc.close(); } catch (e) {} $('jMsg').textContent = '고화질 만들기를 멈췄어요.'; return; }
+  $('hqTxt') && ($('hqTxt').textContent = '마무리 중…');
+  await enc.flush(); muxer.finalize();
+  const blob = new Blob([target.buffer], { type: 'video/mp4' });
+  if (typeof saveVideo === 'function') saveVideo(blob, 'mp4');
+  else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `mapory-hq-${jcfg.from}_${jcfg.to}.mp4`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    $('jMsg').textContent = `고화질 영상을 저장했어요 (${frame}장, ${Math.round(blob.size / 1e6)}MB). 다운로드 폴더를 확인해 주세요.`;
+  }
 }
 
 function jYearButtons() {
@@ -2077,9 +2195,9 @@ function recStart() {
 function jRecFrame() {
   if (!J || !J.rc) return;
   const src = jmap.getCanvas(), c = J.rctx, rc = J.rc;
-  if (rc.width !== src.width || rc.height !== src.height) return;
-  c.drawImage(src, 0, 0);
-  const s = src.width / src.clientWidth;
+  if (!J.hq && (rc.width !== src.width || rc.height !== src.height)) return;
+  c.drawImage(src, 0, 0, rc.width, rc.height);
+  const s = rc.width / src.clientWidth;
   const t1 = $('jT1').textContent, t2 = $('jT2').textContent;
   c.font = `800 ${24 * s}px Pretendard, sans-serif`; const w1 = c.measureText(t1).width;
   c.font = `500 ${14 * s}px Pretendard, sans-serif`; const w2 = c.measureText(t2).width;
