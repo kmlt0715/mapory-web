@@ -407,6 +407,9 @@
         <div class="seg" role="group" aria-label="보기">
           <button id="jFlat" aria-pressed="true">평면 지도</button><button id="jGlobe" aria-pressed="false">🌍 지구본</button>
         </div>
+        <div class="seg" role="group" aria-label="입체">
+          <button id="j2d" aria-pressed="false">평면 (2D)</button><button id="j3d" aria-pressed="true">⛰ 입체 (3D)</button>
+        </div>
         <div class="two">
           <label>이름<input type="text" id="jName" placeholder="나" maxlength="20"></label>
           <label>제목 형식<input type="text" id="jTpl" maxlength="40"></label>
@@ -1390,8 +1393,9 @@ function renderDays(boxEl) {
 // ───────── 여정 영상: 점이 이동 기록을 따라 움직이며 선을 그림 ─────────
 let jmap = null, J = null, JP = null;
 const JCOL = [['핑크', '#E91E63'], ['노랑', '#F59E0B'], ['파랑', '#1E88E5']];
-const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 60, cam: 'auto', fast: true, spd: false, icon: false, globe: false, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
+const jcfg = Object.assign({ name: '', title: '{year} {name}의 Mapory', dur: 60, cam: 'auto', fast: true, spd: false, icon: false, globe: false, d3: true, col: 0, from: '', to: '' }, JSON.parse(localStorage.getItem('mp_journey') || '{}'));
 if (!jcfg.v2) { jcfg.cam = 'auto'; jcfg.v2 = 1; }
+if (!jcfg.v3) { jcfg.d3 = true; jcfg.v3 = 1; }
 const saveJcfg = () => localStorage.setItem('mp_journey', JSON.stringify(jcfg));
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
@@ -1414,13 +1418,13 @@ function buildPath(from, to) {
   const bounds = [[q(so, cut), q(sl, cut)], [q(so, 1 - cut), q(sl, 1 - cut)]];
   const extent = distM(sl[0], so[0], sl[sl.length - 1], so[so.length - 1]);
   const tol = Math.max(8, extent / 4000);            // 화면에서 구분 안 될 만큼 가까운 점은 건너뜀
-  const pts = [], day = [], gap = [], T = [];
+  const pts = [], day = [], gap = [], T = [], A = [];
   for (const s of list) {
     let last = null;
     s.ll.forEach((p, k) => {
       const end = k === s.ll.length - 1;
       if (last && !end && distM(last[1], last[0], p[1], p[0]) < tol) return;
-      pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); T.push(s.t ? s.t[k] : NaN); last = p;
+      pts.push(p); day.push(s.day); gap.push(k === 0 && pts.length > 1); T.push(s.t ? s.t[k] : NaN); A.push(s.a ? s.a[k] : NaN); last = p;
     });
   }
   // 날짜변경선을 넘어도 선이 짧은 쪽으로 이어지도록 경도를 이어 붙임
@@ -1464,7 +1468,7 @@ function buildPath(from, to) {
   };
   for (let i = 1; i < n; i++) if (day[i] !== day[i - 1] || distM(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]) > 120000) closeZone(i);
   if (n) closeZone(n);
-  return { pts, day, gap, T, W, D, n, bounds, hop, zoneOf, zones };
+  return { pts, day, gap, T, A, W, D, n, bounds, hop, zoneOf, zones };
 }
 
 /** 지구 위 두 점 사이 가장 짧은 길(대권) 위의 한 점. f=0이면 a, 1이면 b */
@@ -1510,9 +1514,16 @@ function jTitleText(P, i, km) {
 function setJTitle(a, b) { $('jT1').textContent = a; $('jT2').textContent = b; }
 
 function initJourney() {
-  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true } });
+  jmap = makeMap('jmap', { canvasContextAttributes: { preserveDrawingBuffer: true }, maxPitch: 75 });
   jmap.on('load', () => {
     const col = JCOL[jcfg.col][1], L = { 'line-cap': 'round', 'line-join': 'round' };
+    // 3D 지형: 무료 공개 높이 지도(AWS Terrain Tiles)로 산과 골짜기를 세우고, 언덕 그림자를 얹음
+    try {
+      const dem = { type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Terrain: Mapzen/AWS' };
+      jmap.addSource('j-dem', dem); jmap.addSource('j-dem2', dem);
+      const firstSym = jmap.getStyle().layers.find(l => l.type === 'symbol')?.id;
+      jmap.addLayer({ id: 'j-hill', type: 'hillshade', source: 'j-dem2', layout: { visibility: 'none' }, paint: { 'hillshade-exaggeration': 0.4, 'hillshade-shadow-color': '#3D3424', 'hillshade-highlight-color': '#FFFFFF' } }, firstSym);
+    } catch (e) {}
     for (const id of ['j-old', 'j-new', 'j-head']) jmap.addSource(id, { type: 'geojson', data: EMPTY });
     jmap.addLayer({ id: 'j-old', type: 'line', source: 'j-old', layout: L, paint: { 'line-color': col, 'line-width': 3, 'line-opacity': 0.6 } });
     jmap.addLayer({ id: 'j-glow', type: 'line', source: 'j-new', layout: L, paint: { 'line-color': col, 'line-width': 14, 'line-blur': 9, 'line-opacity': 0.45 } });
@@ -1542,6 +1553,9 @@ function initJourney() {
   $('jName').value = jcfg.name; $('jTpl').value = jcfg.title; $('jFrom').value = jcfg.from; $('jTo').value = jcfg.to;
   $('jDur').value = jcfg.dur; $('jCam').value = jcfg.cam; $('jFast').checked = jcfg.fast; $('jSpd').checked = jcfg.spd; $('jIcon').checked = jcfg.icon;
   $('jFlat').setAttribute('aria-pressed', !jcfg.globe); $('jGlobe').setAttribute('aria-pressed', jcfg.globe);
+  $('j2d').setAttribute('aria-pressed', !jcfg.d3); $('j3d').setAttribute('aria-pressed', jcfg.d3);
+  $('j2d').onclick = () => { jcfg.d3 = false; saveJcfg(); $('j2d').setAttribute('aria-pressed', true); $('j3d').setAttribute('aria-pressed', false); jSetProjection(); if (!J) jPreview(true); };
+  $('j3d').onclick = () => { jcfg.d3 = true; saveJcfg(); $('j2d').setAttribute('aria-pressed', false); $('j3d').setAttribute('aria-pressed', true); jSetProjection(); if (!J) jPreview(true); };
   const box = $('jCols');
   JCOL.forEach(([name, col], i) => {
     const b = document.createElement('button'); b.style.background = col; b.title = name; b.setAttribute('aria-label', '선 색 ' + name); b.setAttribute('aria-pressed', i === jcfg.col);
@@ -1588,7 +1602,22 @@ function jSetProjection() {
   if (!jmap?._ready) return;
   jmap.setProjection({ type: jcfg.globe ? 'globe' : 'mercator' });
   if (jcfg.globe) { try { jmap.setSky({ 'sky-color': '#0B1A33', 'horizon-color': '#3E6FB8', 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] }); } catch (e) {} }
+  // 입체(3D): 지구본이 아닐 때만 지형을 세움
+  const on = j3d();
+  try { jmap.setTerrain(on ? { source: 'j-dem', exaggeration: 1.5 } : null); } catch (e) {}
+  try { if (jmap.getLayer('j-hill')) jmap.setLayoutProperty('j-hill', 'visibility', on ? 'visible' : 'none'); } catch (e) {}
+  if (on) { try { jmap.setSky({ 'sky-color': '#6FB7F0', 'horizon-color': '#DDEFFF', 'fog-color': '#F2F7FB', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.5 }); } catch (e) {} }
+  else if (!J) jmap.easeTo({ pitch: 0, bearing: 0, duration: 500 });
 }
+const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const j3d = () => jcfg.d3 && !jcfg.globe;
+/** a에서 b로 가는 방향 (북쪽 0°, 시계 방향) */
+function bearingOf(a, b) {
+  const r = Math.PI / 180, y = Math.sin((b[0] - a[0]) * r) * Math.cos(b[1] * r);
+  const x = Math.cos(a[1] * r) * Math.sin(b[1] * r) - Math.sin(a[1] * r) * Math.cos(b[1] * r) * Math.cos((b[0] - a[0]) * r);
+  return Math.atan2(y, x) / r;
+}
+const angDiff = (from, to) => ((to - from + 540) % 360) - 180;
 
 /** 재생 전 미리보기: 고른 기간의 길 전체를 보여 줌 */
 function jPreview(fit) {
@@ -1603,9 +1632,14 @@ function jPreview(fit) {
   const [a, b] = jTitleText(JP, JP.n - 1, JP.D[JP.n - 1]); setJTitle(a, b); $('jTitle').classList.remove('hidden');
   if (fit) jFit(JP, 600);
 }
+function jPad() { return { top: 120, bottom: 80, left: innerWidth > 760 ? 400 : 40, right: 60 }; }
 function jFit(P, duration) {
-  if (jcfg.globe) { const c = [(P.bounds[0][0] + P.bounds[1][0]) / 2, (P.bounds[0][1] + P.bounds[1][1]) / 2]; jmap.easeTo({ center: c, zoom: 3, duration }); }
-  else jmap.fitBounds(P.bounds, { padding: { top: 120, bottom: 80, left: innerWidth > 760 ? 400 : 40, right: 60 }, maxZoom: 14, duration });
+  if (jcfg.globe) { const c = [(P.bounds[0][0] + P.bounds[1][0]) / 2, (P.bounds[0][1] + P.bounds[1][1]) / 2]; jmap.easeTo({ center: c, zoom: 3, pitch: 0, bearing: 0, duration }); return; }
+  if (j3d()) {
+    let c = null; try { c = jmap.cameraForBounds(P.bounds, { padding: jPad(), maxZoom: 14 }); } catch (e) {}
+    if (c) { jmap.easeTo({ center: c.center, zoom: c.zoom - 0.4, pitch: 50, bearing: -15, duration }); return; }
+  }
+  jmap.fitBounds(P.bounds, { padding: jPad(), maxZoom: 14, pitch: 0, bearing: 0, duration });
 }
 function baseZoom() { return { near: 13.5, city: 11, country: 7.5 }[jcfg.cam] ?? 11; }
 /** 그 구역(하루 동안 돌아다닌 범위)이 화면에 다 들어오는 줌 */
@@ -1626,11 +1660,11 @@ function jStart(record) {
   if (!P) return;
   jSetProjection();
   const z0 = camZoom(P, 0), c0 = jcfg.cam === 'auto' ? [...P.zones[0].c] : [...P.pts[0]];
-  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: z0, hopStart: z0, cam: c0, endAt: 0 };
+  J = { P, t: 0, last: 0, idx: 1, oldUpto: -1, prevHead: P.pts[0], zoom: z0, hopStart: z0, cam: c0, endAt: 0, pitch: 0, bear: 0, el: null };
   jmap.getSource('j-old').setData(EMPTY);
   jmap.getSource('j-new').setData(EMPTY); jmap.getSource('j-head').setData(EMPTY);
   $('jPanel').classList.add('hidden'); $('jCtl').classList.remove('hidden'); $('jTitle').classList.remove('hidden');
-  if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+  if (jcfg.cam === 'fixed') jFit(P, 0); else jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: 0, bearing: 0 });
   if (record) recStart();
   // 영상으로 저장하는 동안에는 위치를 옮기거나 멈출 수 없음
   $('jPause').textContent = '⏸'; $('jPause').disabled = !!record; $('jSeek').disabled = !!record; $('jSeek').value = 0;
@@ -1667,11 +1701,24 @@ function jTick(now) {
   jmap.getSource('j-new').setData({ type: 'FeatureCollection', features: [lines(P, J.oldUpto < 0 ? 0 : J.oldUpto, i - 1, tail), headF] });
   J.spdText = jcfg.spd && known ? `${{ walk: '🚶', car: '🚗', plane: '✈️' }[mode]} ${J.kmh < 10 ? J.kmh.toFixed(1) : Math.round(J.kmh)} km/h` : (jcfg.spd && isHop ? '✈️ 이동 중' : '');
   const km = P.D[i - 1] + (P.D[i] - P.D[i - 1]) * g;
-  const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2 + (J.spdText ? ' · ' + J.spdText : ''));
+  // 기록된 해발 고도가 있으면 부드럽게 보여 줌
+  const a0 = P.A[i - 1], a1 = P.A[i];
+  const el = Number.isFinite(a0) && Number.isFinite(a1) ? a0 + (a1 - a0) * g : Number.isFinite(a1) ? a1 : a0;
+  if (Number.isFinite(el)) J.el = J.el == null ? el : J.el + (el - J.el) * (1 - Math.pow(0.2, dt || 0.016));
+  else if (P.gap[i]) J.el = null;
+  const elText = J.el != null && !isHop ? `⛰ ${nf.format(Math.round(J.el))}m` : '';
+  const [t1, t2] = jTitleText(P, i, km); setJTitle(t1, t2 + (J.spdText ? ' · ' + J.spdText : '') + (elText ? ' · ' + elText : ''));
   if (!J.dragging) $('jSeek').value = Math.round(J.t / jcfg.dur * 1000);
   $('jTime').textContent = `${fmtT(J.t)} / ${fmtT(jcfg.dur)}`;
   // 카메라: 점을 부드럽게 따라가고, 빨리 움직일 때는 멀리서 봄
   if (jcfg.cam !== 'fixed' && dt > 0) {
+    // 3D: 드론처럼 비스듬히. 멀리 날아갈 때는 위에서 내려다보고, 땅에서는 가는 방향으로 천천히 돌아감
+    const tp = !j3d() ? 0 : isHop ? 10 : J.zoom < 7 ? 25 : J.zoom < 10 ? 45 : 58;
+    J.pitch += (tp - J.pitch) * (1 - Math.pow(0.35, dt));
+    if (j3d() && !isHop) {
+      if (jcfg.cam === 'auto') J.bear = (J.bear + 3 * dt) % 360;                // 하루 보기: 천천히 한 바퀴
+      else if (distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) > 0.3) J.bear += angDiff(J.bear, bearingOf(J.prevHead, head)) * (1 - Math.pow(0.82, dt));
+    } else if (!j3d()) J.bear += angDiff(J.bear, 0) * (1 - Math.pow(0.3, dt));
     // 속도는 부드럽게(최근 값 위주 평균) 재고, 동네 안에서는 조금만, 장거리 이동 중에만 크게 멀어집니다.
     const raw = distM(J.prevHead[1], J.prevHead[0], head[1], head[0]) / dt;      // m/초
     J.speed = (J.speed ?? raw) + (raw - (J.speed ?? raw)) * (1 - Math.pow(0.1, dt));
@@ -1699,7 +1746,7 @@ function jTick(now) {
         const aim = J.zoom > tz + 0.4 ? head : Z.c;
         J.cam = [lonWrap(J.cam[0] + lonDiff(J.cam[0], aim[0]) * k), J.cam[1] + (aim[1] - J.cam[1]) * k];
         J.hopStart = J.zoom;
-        jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+        jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch, bearing: J.bear });
         J.prevHead = head;
       } else {
       const longHop = distM(a[1], a[0], b[1], b[0]) > 15000;
@@ -1711,7 +1758,7 @@ function jTick(now) {
       J.hopStart = J.zoom;
       }
     }
-    if (!(jcfg.cam === 'auto' && !J.inHop)) jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+    if (!(jcfg.cam === 'auto' && !J.inHop)) jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch, bearing: J.bear });
   }
   J.prevHead = head;
   if (J.t >= jcfg.dur && !J.paused && !J.dragging) {
@@ -1739,7 +1786,7 @@ function jSeek(t) {
     J.zoom = camZoom(P, i); J.hopStart = J.zoom; J.speed = 0; J.inHop = false;
     J.cam = jcfg.cam === 'auto' ? [...P.zones[P.zoneOf[i]].c] : [...head];
     J.prevHead = head;
-    jmap.jumpTo({ center: J.cam, zoom: J.zoom });
+    jmap.jumpTo({ center: J.cam, zoom: J.zoom, pitch: J.pitch || 0, bearing: J.bear || 0 });
   }
 }
 
