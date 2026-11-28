@@ -1554,14 +1554,21 @@ function initJourney() {
   jmap.on('render', jRecFrame);
   // 재생 중 구도 바꾸기: 두 손가락으로 돌리기·기울이기, 벌려서 확대. 손을 떼면 그 차이를 기억해서 계속 따라감
   try { jmap.dragRotate.enable(); jmap.touchZoomRotate.enableRotation(); jmap.touchPitch.enable(); jmap.keyboard.enableRotation(); } catch (e) {}
-  jmap.on('movestart', (e) => { if (J && e.originalEvent) J.touching = true; });
-  jmap.on('moveend', (e) => {
+  // 손가락·마우스가 지도에 닿아 있는 동안은 자동 카메라를 멈추고, 떼는 순간의 차이를 기억
+  const cont = jmap.getCanvasContainer();
+  let fingers = 0, wheelT = 0;
+  const grab = () => { if (J) J.touching = true; };
+  const release = () => {
     if (!J || !J.touching) return;
     J.touching = false;
     J.uz = jmap.getZoom() - J.zoom - (J.vz || 0);
-    J.up = jmap.getPitch() - (J.vp ?? J.pitch);
-    J.ub = angDiff(J.bear, jmap.getBearing());
-  });
+    J.up = jmap.getPitch() - (J.vp ?? J.pitch ?? 0);
+    J.ub = angDiff(J.bear || 0, jmap.getBearing());
+  };
+  cont.addEventListener('pointerdown', () => { fingers++; grab(); });
+  const up = () => { fingers = Math.max(0, fingers - 1); if (!fingers) setTimeout(release, 30); };
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  cont.addEventListener('wheel', () => { grab(); clearTimeout(wheelT); wheelT = setTimeout(release, 700); }, { passive: true });
 
   // 설정 칸 채우기
   const t = dayOf(Date.now());
